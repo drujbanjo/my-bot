@@ -312,7 +312,7 @@ bot.onText(/\/gethw/, async (msg) => {
   const subjects = Object.keys(homework);
 
   if (subjects.length === 0) {
-    await bot.sendMessage(chatId, 'Домашние задания пока не сохранены');
+    await bot.sendMessage(chatId, 'Домашние задания пока не сохранены', { message_thread_id: HOMEWORK_TOPIC_ID });
     return;
   }
 
@@ -347,7 +347,7 @@ bot.onText(/\/homework/, async (msg) => {
       parse_mode: 'HTML'
     });
   } else {
-    await bot.sendMessage(chatId, `Нет ДЗ на ${nextDay.name} (${nextDay.date})`);
+    await bot.sendMessage(chatId, `Нет ДЗ на ${nextDay.name} (${nextDay.date})`, { message_thread_id: HOMEWORK_TOPIC_ID });
   }
 });
 
@@ -359,7 +359,7 @@ bot.onText(/\/delhw (.+)/, async (msg, match) => {
   const subject = subjectAliases[subjectInput];
 
   if (!subject) {
-    await bot.sendMessage(chatId, '❌ Предмет не найден');
+    await bot.sendMessage(chatId, '❌ Предмет не найден', { message_thread_id: HOMEWORK_TOPIC_ID });
     return;
   }
 
@@ -367,9 +367,9 @@ bot.onText(/\/delhw (.+)/, async (msg, match) => {
   if (homework[subject]) {
     delete homework[subject];
     await saveHomework(homework);
-    await bot.sendMessage(chatId, `✅ ДЗ по предмету "${subject}" удалено`);
+    await bot.sendMessage(chatId, `✅ ДЗ по предмету "${subject}" удалено`, { message_thread_id: HOMEWORK_TOPIC_ID });
   } else {
-    await bot.sendMessage(chatId, `ℹ️ ДЗ по предмету "${subject}" не найдено`);
+    await bot.sendMessage(chatId, `ℹ️ ДЗ по предмету "${subject}" не найдено`, { message_thread_id: HOMEWORK_TOPIC_ID });
   }
 });
 

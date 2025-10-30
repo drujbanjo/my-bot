@@ -328,7 +328,10 @@ bot.onText(/\/gethw/, async (msg) => {
     message += `<b>${subject}</b> (${date}):\n${hw.text}\n\n`;
   });
 
-  await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+  await bot.sendMessage(chatId, message, {
+    message_thread_id: HOMEWORK_TOPIC_ID, // Топик 2, 
+    parse_mode: 'HTML'
+  });
 });
 
 // Команда для просмотра ДЗ на завтра
@@ -339,7 +342,10 @@ bot.onText(/\/homework/, async (msg) => {
 
   if (message) {
     // ИСПРАВЛЕНО: убран message_thread_id, ответ идет в тот же чат где была команда
-    await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
+    await bot.sendMessage(chatId, message, {
+      message_thread_id: HOMEWORK_TOPIC_ID, // Топик 2
+      parse_mode: 'HTML'
+    });
   } else {
     await bot.sendMessage(chatId, `Нет ДЗ на ${nextDay.name} (${nextDay.date})`);
   }
@@ -373,6 +379,7 @@ bot.onText(/\/schedule/, async (msg) => {
   const nextDay = getNextDayName();
   const message = formatScheduleMessage(nextDay);
   await bot.sendMessage(chatId, message, {
+    message_thread_id: SCHEDULE_TOPIC_ID,// Топик 2
     parse_mode: 'HTML'
   });
 });

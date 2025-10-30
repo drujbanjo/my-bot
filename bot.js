@@ -252,22 +252,22 @@ async function formatHomeworkMessage(dayInfo) {
   return message.trim();
 }
 
-// Функция для отправки расписания в топик
+// Функция для отправки расписания в топик 3
 async function sendScheduleToTopic() {
   try {
     const nextDay = getNextDayName();
     const message = formatScheduleMessage(nextDay);
     await bot.sendMessage(FORUM_CHAT_ID, message, {
-      message_thread_id: SCHEDULE_TOPIC_ID,
+      message_thread_id: SCHEDULE_TOPIC_ID, // Топик 3
       parse_mode: 'HTML'
     });
-    console.log(`✅ Расписание на ${nextDay.name} (${nextDay.date}) отправлено успешно`);
+    console.log(`✅ Расписание на ${nextDay.name} (${nextDay.date}) отправлено в топик ${SCHEDULE_TOPIC_ID}`);
   } catch (error) {
     console.error('❌ Ошибка при отправке расписания:', error);
   }
 }
 
-// Функция для отправки домашнего задания в топик
+// Функция для отправки домашнего задания в топик 2
 async function sendHomeworkToTopic() {
   try {
     const nextDay = getNextDayName();
@@ -275,10 +275,10 @@ async function sendHomeworkToTopic() {
 
     if (message) {
       await bot.sendMessage(FORUM_CHAT_ID, message, {
-        message_thread_id: HOMEWORK_TOPIC_ID,
+        message_thread_id: HOMEWORK_TOPIC_ID, // Топик 2
         parse_mode: 'HTML'
       });
-      console.log(`✅ ДЗ на ${nextDay.name} (${nextDay.date}) отправлено успешно`);
+      console.log(`✅ ДЗ на ${nextDay.name} (${nextDay.date}) отправлено в топик ${HOMEWORK_TOPIC_ID}`);
     } else {
       console.log(`ℹ️ Нет ДЗ на ${nextDay.name}`);
     }
@@ -289,10 +289,10 @@ async function sendHomeworkToTopic() {
 
 // Главная функция - отправка расписания и ДЗ
 async function sendDailyUpdates() {
-  await sendScheduleToTopic();
+  await sendScheduleToTopic(); // Отправляет в топик 3
   // Небольшая задержка между отправками
   setTimeout(() => {
-    sendHomeworkToTopic();
+    sendHomeworkToTopic(); // Отправляет в топик 2
   }, 2000);
 }
 
@@ -338,7 +338,8 @@ bot.onText(/\/homework/, async (msg) => {
   const message = await formatHomeworkMessage(nextDay);
 
   if (message) {
-    await bot.sendMessage(chatId, message, { message_thread_id: SCHEDULE_TOPIC_ID, parse_mode: 'HTML' });
+    // ИСПРАВЛЕНО: убран message_thread_id, ответ идет в тот же чат где была команда
+    await bot.sendMessage(chatId, message, { parse_mode: 'HTML' });
   } else {
     await bot.sendMessage(chatId, `Нет ДЗ на ${nextDay.name} (${nextDay.date})`);
   }
@@ -382,6 +383,7 @@ bot.onText(/\/test/, async (msg) => {
 
   if (chatId.toString() === FORUM_CHAT_ID) {
     await sendDailyUpdates();
+    await bot.sendMessage(chatId, '✅ Тестовая отправка выполнена!\n📋 Расписание → Топик 3\n📚 ДЗ → Топик 2');
   } else {
     await bot.sendMessage(chatId, 'Эта команда работает только в форуме!');
   }

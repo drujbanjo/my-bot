@@ -7,8 +7,8 @@ const path = require('path');
 // Конфигурация из переменных окружения
 const BOT_TOKEN = process.env.BOT_TOKEN || 'YOUR_BOT_TOKEN_HERE';
 const FORUM_CHAT_ID = process.env.FORUM_CHAT_ID || 'YOUR_FORUM_CHAT_ID';
-const SCHEDULE_TOPIC_ID = parseInt(process.env.SCHEDULE_TOPIC_ID) || 3;
-const HOMEWORK_TOPIC_ID = parseInt(process.env.HOMEWORK_TOPIC_ID) || 2;
+const SCHEDULE_TOPIC_ID = 3;
+const HOMEWORK_TOPIC_ID = 2;
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Tashkent';
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
@@ -338,7 +338,7 @@ bot.onText(/\/homework/, async (msg) => {
   const message = await formatHomeworkMessage(nextDay);
 
   if (message) {
-    await bot.sendMessage(chatId, message, { message_thread_id: 2, parse_mode: 'HTML' });
+    await bot.sendMessage(chatId, message, { message_thread_id: SCHEDULE_TOPIC_ID, parse_mode: 'HTML' });
   } else {
     await bot.sendMessage(chatId, `Нет ДЗ на ${nextDay.name} (${nextDay.date})`);
   }

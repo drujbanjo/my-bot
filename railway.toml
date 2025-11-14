@@ -2,7 +2,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "node index.js"
+startCommand = "node bot.js"
 
 [[volumes]]
 mountPath = "/app/data"

@@ -261,7 +261,43 @@ function formatScheduleMessage(dayInfo) {
   return message;
 }
 
-// Функция для формирования сообщения с ДЗ на основе расписания
+// Функция для поиска всех вариантов предмета в ДЗ
+function findRelatedHomework(subjectFromSchedule, allHomework) {
+  const results = [];
+
+  // Точное совпадение
+  if (allHomework[subjectFromSchedule]) {
+    results.push({
+      subject: subjectFromSchedule,
+      homework: allHomework[subjectFromSchedule]
+    });
+  }
+
+  // Частичное совпадение (для Технология → Технология Девочки/Мальчики)
+  Object.keys(allHomework).forEach(hwSubject => {
+    if (hwSubject !== subjectFromSchedule) {
+      // Если предмет из ДЗ начинается с предмета из расписания
+      if (hwSubject.startsWith(subjectFromSchedule + ' ')) {
+        results.push({
+          subject: hwSubject,
+          homework: allHomework[hwSubject]
+        });
+      }
+      // Или если предмет из расписания содержится в предмете из ДЗ
+      // Например: "История" найдет "Всемирная история"
+      else if (hwSubject.includes(subjectFromSchedule)) {
+        results.push({
+          subject: hwSubject,
+          homework: allHomework[hwSubject]
+        });
+      }
+    }
+  });
+
+  return results;
+}
+
+// Обновленная функция для формирования сообщения с ДЗ
 async function formatHomeworkMessage(dayInfo) {
   const lessons = schedule[dayInfo.name];
   const homework = await loadHomework();
@@ -274,10 +310,13 @@ async function formatHomeworkMessage(dayInfo) {
   let message = `<b>ДЗ на ${dayInfo.name} (${dayInfo.date})</b>\n`;
 
   lessons.forEach((lesson) => {
-    const hw = homework[lesson.subject];
-    if (hw) {
-      message += `<b>${lesson.subject} - </b>${hw.text}\n`;
-      hasHomework = true;
+    const relatedHW = findRelatedHomework(lesson.subject, homework);
+
+    if (relatedHW.length > 0) {
+      relatedHW.forEach(hw => {
+        message += `<b>${hw.subject} - </b>${hw.homework.text}\n`;
+        hasHomework = true;
+      });
     }
   });
 

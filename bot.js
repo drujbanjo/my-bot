@@ -13,8 +13,8 @@ const TIMEZONE = process.env.TIMEZONE || 'Asia/Tashkent';
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
-// Путь к файлу с домашними заданиями
-const HOMEWORK_FILE = path.join(__dirname, 'homework.json');
+const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || __dirname;
+const HOMEWORK_FILE = path.join(DATA_DIR, 'homework.json');
 
 // Расписание по дням недели
 const schedule = {

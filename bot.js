@@ -4,6 +4,7 @@ const cron = require('node-cron');
 const fs = require('fs').promises;
 const path = require('path');
 
+
 // Конфигурация из переменных окружения
 const BOT_TOKEN = process.env.BOT_TOKEN || 'YOUR_BOT_TOKEN_HERE';
 const FORUM_CHAT_ID = process.env.FORUM_CHAT_ID || 'YOUR_FORUM_CHAT_ID';

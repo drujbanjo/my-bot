@@ -68,6 +68,17 @@ const schedule = {
   'Воскресенье': []
 };
 
+// Склонение дней недели в винительный падеж (на что?)
+const dayAccusativeCase = {
+  'Понедельник': 'Понедельник',
+  'Вторник': 'Вторник',
+  'Среда': 'Среду',
+  'Четверг': 'Четверг',
+  'Пятница': 'Пятницу',
+  'Суббота': 'Субботу',
+  'Воскресенье': 'Воскресенье'
+};
+
 // Список всех предметов с вариациями написания
 const subjectAliases = {
   'алгебра': 'Алгебра',
@@ -107,16 +118,24 @@ const subjectAliases = {
   'узбекский': 'Узбекский язык',
   'узбекски': 'Узбекский язык',
 
-  'английский': 'Английский язык',
-  'английскый': 'Английский язык',
-  'английски': 'Английский язык',
+  'английский 1 группа': 'Английский язык 1 группа',
+  'английскый 1 группа': 'Английский язык 1 группа',
+  'английски 1 группа': 'Английский язык 1 группа',
+
+  'английский 2 группа': 'Английский язык 2 группа',
+  'английскый 2 группа': 'Английский язык 2 группа',
+  'английски 2 группа': 'Английский язык 2 группа',
 
   'литература': 'Литература',
   'литературе': 'Литература',
 
-  'информатика': 'Информатика',
-  'информатике': 'Информатика',
-  'информатик': 'Информатика',
+  'информатика 1 группа': 'Информатика 1 группа',
+  'информатике 1 группа': 'Информатика 1 группа',
+  'информатик 1 группа': 'Информатика 1 группа',
+
+  'информатика 2 группа': 'Информатика 2 группа',
+  'информатике 2 группа': 'Информатика 2 группа',
+  'информатик 2 группа': 'Информатика 2 группа',
 
   'огп': 'ОГП',
 
@@ -308,7 +327,8 @@ async function formatHomeworkMessage(dayInfo) {
   }
 
   let hasHomework = false;
-  let message = `<b>ДЗ на ${dayInfo.name} (${dayInfo.date})</b>\n`;
+  const dayAccusative = dayAccusativeCase[dayInfo.name];
+  let message = `<b>ДЗ на ${dayAccusative} (${dayInfo.date})</b>\n`;
 
   lessons.forEach((lesson) => {
     const relatedHW = findRelatedHomework(lesson.subject, homework);
@@ -417,13 +437,13 @@ bot.onText(/\/homework/, async (msg) => {
   const message = await formatHomeworkMessage(nextDay);
 
   if (message) {
-    // ИСПРАВЛЕНО: убран message_thread_id, ответ идет в тот же чат где была команда
     await bot.sendMessage(chatId, message, {
       message_thread_id: HOMEWORK_TOPIC_ID, // Топик 2
       parse_mode: 'HTML'
     });
   } else {
-    await bot.sendMessage(chatId, `Нет ДЗ на ${nextDay.name} (${nextDay.date})`, { message_thread_id: HOMEWORK_TOPIC_ID });
+    const dayAccusative = dayAccusativeCase[nextDay.name];
+    await bot.sendMessage(chatId, `Нет ДЗ на ${dayAccusative} (${nextDay.date})`, { message_thread_id: HOMEWORK_TOPIC_ID });
   }
 });
 
@@ -455,7 +475,7 @@ bot.onText(/\/schedule/, async (msg) => {
   const nextDay = getNextDayName();
   const message = formatScheduleMessage(nextDay);
   await bot.sendMessage(chatId, message, {
-    message_thread_id: SCHEDULE_TOPIC_ID,// Топик 2
+    message_thread_id: SCHEDULE_TOPIC_ID,// Топик 3
     parse_mode: 'HTML'
   });
 });

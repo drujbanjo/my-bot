@@ -20,44 +20,43 @@ const HOMEWORK_FILE = path.join(DATA_DIR, 'homework.json');
 // Расписание по дням недели
 const schedule = {
   'Понедельник': [
-    { number: 1, subject: 'Физкультура', time: '13:10-13:50' },
-    { number: 2, subject: 'Алгебра', time: '13:55-14:35' },
-    { number: 3, subject: 'Узбекский язык', time: '14:40-15:20' },
-    { number: 4, subject: 'Химия', time: '15:25-16:05' },
-    { number: 5, subject: 'Английский язык', time: '16:10-16:50' },
-    { number: 6, subject: 'Классный час', time: '16:55-17:35' }
+    { number: 1, subject: 'Классный час', time: '13:10-13:55' },
+    { number: 2, subject: 'Алгебра', time: '14:00-14:45' },
+    { number: 3, subject: 'Узбекский язык', time: '14:50-15:35' },
+    { number: 4, subject: 'Химия', time: '15:40-16:25' },
+    { number: 5, subject: 'Английский язык', time: '16:30-17:15' },
+    { number: 6, subject: 'Физкультура', time: '17:20-18:05' }
   ],
   'Вторник': [
-    { number: 0, subject: 'География', time: '12:30-13:05' },
-    { number: 1, subject: 'ОГП', time: '13:10-13:50' },
-    { number: 2, subject: 'Биология', time: '13:55-14:35' },
-    { number: 3, subject: 'Информатика', time: '14:40-15:20' },
-    { number: 4, subject: 'Геометрия', time: '15:25-16:05' },
-    { number: 5, subject: 'Биология', time: '16:10-16:50' }
+    { number: 1, subject: 'ОГП', time: '13:10-13:55' },
+    { number: 2, subject: 'Биология', time: '14:00-14:45' },
+    { number: 3, subject: 'Информатика', time: '14:50-15:35' },
+    { number: 4, subject: 'Геометрия', time: '15:40-16:25' },
+    { number: 5, subject: 'География', time: '16:30-17:15' },
+    { number: 6, subject: 'Биология', time: '17:20-18:05' }
   ],
   'Среда': [
-    { number: 1, subject: 'Физкультура', time: '13:10-13:50' },
-    { number: 2, subject: 'Алгебра', time: '13:55-14:35' },
-    { number: 3, subject: 'Узбекский язык', time: '14:40-15:20' },
-    { number: 4, subject: 'Русский язык', time: '15:25-16:05' },
-    { number: 5, subject: 'Английский язык', time: '16:10-16:50' },
-    { number: 6, subject: 'Геометрия', time: '16:55-17:35' }
+    { number: 1, subject: 'Физкультура', time: '13:10-13:55' },
+    { number: 2, subject: 'Алгебра', time: '14:00-14:45' },
+    { number: 3, subject: 'Узбекский язык', time: '14:50-15:35' },
+    { number: 4, subject: 'Русский язык', time: '15:40-16:25' },
+    { number: 5, subject: 'Английский язык', time: '16:30-17:15' },
+    { number: 6, subject: 'Геометрия', time: '17:20-18:05' }
   ],
   'Четверг': [
-    { number: 0, subject: 'Химия', time: '12:30-13:05' },
-    { number: 1, subject: 'Технология', time: '13:10-13:50' },
-    { number: 2, subject: 'История Узбекистана', time: '13:55-14:35' },
-    { number: 3, subject: 'Литература', time: '14:40-15:20' },
-    { number: 4, subject: 'Физика', time: '15:25-16:05' },
-    { number: 5, subject: 'Английский язык', time: '16:10-16:50' }
+    { number: 1, subject: 'Технология', time: '13:10-13:55' },
+    { number: 2, subject: 'Химия', time: '14:00-14:45' },
+    { number: 3, subject: 'Физика', time: '14:50-15:35' },
+    { number: 4, subject: 'Литература', time: '15:40-16:25' },
+    { number: 5, subject: 'История Узбекситана', time: '16:30-17:15' },
+    { number: 6, subject: 'Английский язык', time: '17:20-18:05' }
   ],
   'Пятница': [
-    { number: 0, subject: 'Узбекский язык', time: '12:30-13:05' },
-    { number: 1, subject: 'Физика', time: '13:10-13:50' },
-    { number: 2, subject: 'Русский язык', time: '13:55-14:35' },
-    { number: 3, subject: 'Всемирная история', time: '14:40-15:20' },
-    { number: 4, subject: 'Литература', time: '15:25-16:05' },
-    { number: 5, subject: 'Воспитание', time: '16:10-16:50' }
+    { number: 1, subject: 'Физика', time: '13:10-13:55' },
+    { number: 2, subject: 'Русский язык', time: '14:00-14:45' },
+    { number: 3, subject: 'Всемирная история', time: '14:50-15:35' },
+    { number: 4, subject: 'Литература', time: '15:40-16:25' },
+    { number: 5, subject: 'Узбекский язык', time: '16:30-17:15' }
   ],
   'Суббота': [
     { number: 3, subject: 'География', time: '14:40-15:20' },
@@ -236,28 +235,27 @@ bot.on('message', async (msg) => {
 function getNextDayName() {
   const days = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
   const today = new Date();
-  const tomorrow = new Date(today);
+  const currentDayIndex = today.getDay(); // 0 = Вс, 6 = Сб
 
-  if (today.getDay() === 6) {
-    tomorrow.setDate(today.getDate() + 2);
-    return {
-      name: 'Понедельник',
-      date: formatDate(tomorrow)
-    };
+  // Если сегодня Воскресенье (0), отменяем отправку
+  if (currentDayIndex === 0) {
+    return null;
   }
 
-  if (today.getDay() === 0) {
-    tomorrow.setDate(today.getDate() + 1);
-    return {
-      name: 'Понедельник',
-      date: formatDate(tomorrow)
-    };
-  }
+  const nextDay = new Date(today);
+  let daysToAdd = 1;
 
-  tomorrow.setDate(today.getDate() + 1);
+  // Если сегодня Суббота (6), отправляем на Понедельник (+2 дня)
+  if (currentDayIndex === 6) {
+    daysToAdd = 2;
+  }
+  // Для всех остальных дней (Пн-Пт) daysToAdd остается 1.
+
+  nextDay.setDate(today.getDate() + daysToAdd);
+
   return {
-    name: days[tomorrow.getDay()],
-    date: formatDate(tomorrow)
+    name: days[nextDay.getDay()],
+    date: formatDate(nextDay)
   };
 }
 
@@ -354,6 +352,11 @@ async function formatHomeworkMessage(dayInfo) {
 async function sendScheduleToTopic() {
   try {
     const nextDay = getNextDayName();
+
+    if (!nextDay) { // ✅ Проверка на Воскресенье (null)
+      console.log('ℹ️ Сегодня Воскресенье, отправка расписания отменена.');
+      return
+    }
     const message = formatScheduleMessage(nextDay);
     await bot.sendMessage(FORUM_CHAT_ID, message, {
       message_thread_id: SCHEDULE_TOPIC_ID, // Топик 3
@@ -369,6 +372,11 @@ async function sendScheduleToTopic() {
 async function sendHomeworkToTopic() {
   try {
     const nextDay = getNextDayName();
+    if (!nextDay) { // ✅ Проверка на Воскресенье (null)
+      console.log('ℹ️ Сегодня Воскресенье, отправка ДЗ отменена.');
+      return
+    }
+
     const message = await formatHomeworkMessage(nextDay);
 
     if (message) {

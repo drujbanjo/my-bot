@@ -59,10 +59,11 @@ const schedule = {
     { number: 5, subject: 'Узбекский язык', time: '16:30-17:15' }
   ],
   'Суббота': [
-    { number: 3, subject: 'География', time: '14:40-15:20' },
-    { number: 4, subject: 'История Узбекистана', time: '15:25-16:05' },
-    { number: 5, subject: 'Алгебра', time: '16:10-16:50' },
-    { number: 6, subject: 'Черчение', time: '16:55-17:35' }
+    { number: 1, subject: 'Биология', time: '13:10-13:55' },
+    { number: 2, subject: 'География/Экономика', time: '14:00-14:45' },
+    { number: 3, subject: 'История Узбекистана', time: '14:50-15:35' },
+    { number: 4, subject: 'Алгебра', time: '15:40-16:25' },
+    { number: 5, subject: 'Черчение', time: '16:30-17:15' }
   ],
   'Воскресенье': []
 };

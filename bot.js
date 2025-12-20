@@ -1,7 +1,9 @@
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const cron = require('node-cron');
-const { Pool } = require('pg');
+const fs = require('fs').promises;
+const path = require('path');
+
 
 // Конфигурация из переменных окружения
 const BOT_TOKEN = process.env.BOT_TOKEN || 'YOUR_BOT_TOKEN_HERE';
@@ -10,28 +12,11 @@ const SCHEDULE_TOPIC_ID = 3;
 const HOMEWORK_TOPIC_ID = 2;
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Tashkent';
 
-// Подключение к PostgreSQL (Neon via Vercel Storage)
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  },
-  // Оптимальные настройки для Neon + Railway
-  max: 10, // максимум подключений (для free tier достаточно)
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
-
-// Проверка подключения при старте
-pool.on('connect', () => {
-  console.log('✅ Подключено к Neon PostgreSQL (Vercel Storage)');
-});
-
-pool.on('error', (err) => {
-  console.error('❌ Ошибка подключения к БД:', err);
-});
-
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+
+const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || __dirname;
+const HOMEWORK_FILE = path.join(DATA_DIR, 'homework.json');
+const LAST_SCHEDULE_FILE = path.join(DATA_DIR, 'last_schedule.json');
 
 // Расписание по дням недели
 const schedule = {
@@ -132,7 +117,7 @@ const subjectAliases = {
   'русски': 'Русский язык',
 
   'узбекский 1 группа': 'Узбекский язык 1 группа',
-  'узбекски 2 группа': 'Узбекский язык 1 группа',
+  'узбекски 1 группа': 'Узбекский язык 1 группа',
   'узбекский 2 группа': 'Узбекский язык 2 группа',
   'узбекски 2 группа': 'Узбекский язык 2 группа',
 
@@ -176,171 +161,59 @@ const subjectAliases = {
   'час будушего': 'Классный час',
 };
 
-// Инициализация базы данных
-async function initDatabase() {
+// Функция для загрузки домашних заданий из файла
+async function loadHomework() {
   try {
-    // Создаем таблицу для домашних заданий
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS homework (
-        id SERIAL PRIMARY KEY,
-        subject VARCHAR(255) UNIQUE NOT NULL,
-        text TEXT NOT NULL,
-        message_id INTEGER,
-        full_message TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    // Создаем таблицу для хранения ID последнего расписания
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS schedule_messages (
-        id SERIAL PRIMARY KEY,
-        message_id INTEGER NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-
-    console.log('✅ База данных инициализирована');
+    const data = await fs.readFile(HOMEWORK_FILE, 'utf8');
+    return JSON.parse(data);
   } catch (error) {
-    console.error('❌ Ошибка при инициализации БД:', error);
+    return {};
   }
 }
 
-// Функция для сохранения/обновления ДЗ
-async function saveHomework(subject, text, messageId, fullMessage) {
+// Функция для сохранения домашних заданий в файл
+async function saveHomework(homework) {
   try {
-    await pool.query(`
-      INSERT INTO homework (subject, text, message_id, full_message, updated_at)
-      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
-      ON CONFLICT (subject) 
-      DO UPDATE SET 
-        text = $2,
-        message_id = $3,
-        full_message = $4,
-        updated_at = CURRENT_TIMESTAMP
-    `, [subject, text, messageId, fullMessage]);
-
-    console.log(`📝 Сохранено ДЗ: ${subject} → ${text}`);
+    await fs.writeFile(HOMEWORK_FILE, JSON.stringify(homework, null, 2), 'utf8');
   } catch (error) {
     console.error('❌ Ошибка при сохранении ДЗ:', error);
   }
 }
 
-// Функция для получения всех ДЗ
-async function getAllHomework() {
+// Функция для загрузки ID последнего сообщения с расписанием
+async function loadLastScheduleMessageId() {
   try {
-    const result = await pool.query('SELECT * FROM homework ORDER BY subject');
-
-    const homework = {};
-    result.rows.forEach(row => {
-      homework[row.subject] = {
-        text: row.text,
-        timestamp: row.updated_at.toISOString(),
-        message_id: row.message_id,
-        full_message: row.full_message
-      };
-    });
-
-    return homework;
+    const data = await fs.readFile(LAST_SCHEDULE_FILE, 'utf8');
+    return JSON.parse(data);
   } catch (error) {
-    console.error('❌ Ошибка при получении ДЗ:', error);
-    return {};
-  }
-}
-
-// Функция для получения ДЗ по предмету
-async function getHomeworkBySubject(subject) {
-  try {
-    const result = await pool.query(
-      'SELECT * FROM homework WHERE subject = $1',
-      [subject]
-    );
-
-    if (result.rows.length > 0) {
-      const row = result.rows[0];
-      return {
-        text: row.text,
-        timestamp: row.updated_at.toISOString(),
-        message_id: row.message_id,
-        full_message: row.full_message
-      };
-    }
-
-    return null;
-  } catch (error) {
-    console.error('❌ Ошибка при получении ДЗ:', error);
     return null;
   }
 }
 
-// Функция для удаления ДЗ по предмету
-async function deleteHomework(subject) {
-  try {
-    const result = await pool.query(
-      'DELETE FROM homework WHERE subject = $1 RETURNING *',
-      [subject]
-    );
-
-    return result.rowCount > 0;
-  } catch (error) {
-    console.error('❌ Ошибка при удалении ДЗ:', error);
-    return false;
-  }
-}
-
-// Функция для сохранения ID последнего расписания
+// Функция для сохранения ID последнего сообщения с расписанием
 async function saveLastScheduleMessageId(messageId) {
   try {
-    // Удаляем все старые записи
-    await pool.query('DELETE FROM schedule_messages');
-
-    // Сохраняем новую
-    await pool.query(
-      'INSERT INTO schedule_messages (message_id) VALUES ($1)',
-      [messageId]
-    );
-
-    console.log(`💾 Сохранен ID расписания: ${messageId}`);
+    await fs.writeFile(LAST_SCHEDULE_FILE, JSON.stringify({ messageId }, null, 2), 'utf8');
   } catch (error) {
-    console.error('❌ Ошибка при сохранении ID расписания:', error);
-  }
-}
-
-// Функция для получения ID последнего расписания
-async function getLastScheduleMessageId() {
-  try {
-    const result = await pool.query(
-      'SELECT message_id FROM schedule_messages ORDER BY created_at DESC LIMIT 1'
-    );
-
-    if (result.rows.length > 0) {
-      return result.rows[0].message_id;
-    }
-
-    return null;
-  } catch (error) {
-    console.error('❌ Ошибка при получении ID расписания:', error);
-    return null;
+    console.error('❌ Ошибка при сохранении ID сообщения:', error);
   }
 }
 
 // Функция для удаления предыдущего сообщения с расписанием
 async function deletePreviousSchedule() {
   try {
-    const messageId = await getLastScheduleMessageId();
-
-    if (messageId) {
+    const lastMessage = await loadLastScheduleMessageId();
+    if (lastMessage && lastMessage.messageId) {
       try {
-        await bot.deleteMessage(FORUM_CHAT_ID, messageId);
-        console.log(`🗑️ Удалено предыдущее расписание (message_id: ${messageId})`);
+        await bot.deleteMessage(FORUM_CHAT_ID, lastMessage.messageId);
+        console.log(`🗑️ Удалено предыдущее расписание (message_id: ${lastMessage.messageId})`);
       } catch (deleteError) {
         if (deleteError.response && deleteError.response.body) {
           const errorCode = deleteError.response.body.error_code;
           const errorDesc = deleteError.response.body.description;
 
           if (errorCode === 400 && errorDesc.includes('message to delete not found')) {
-            console.log(`ℹ️ Предыдущее сообщение уже удалено или не существует (message_id: ${messageId})`);
+            console.log(`ℹ️ Предыдущее сообщение уже удалено или не существует (message_id: ${lastMessage.messageId})`);
           } else {
             console.error(`❌ Ошибка при удалении сообщения: ${errorDesc}`);
           }
@@ -392,12 +265,15 @@ bot.on('message', async (msg) => {
     const detected = detectSubjectFromMessage(msg.text);
 
     if (detected) {
-      await saveHomework(
-        detected.subject,
-        detected.homework,
-        msg.message_id,
-        msg.text
-      );
+      const homework = await loadHomework();
+      homework[detected.subject] = {
+        text: detected.homework,
+        timestamp: new Date().toISOString(),
+        message_id: msg.message_id,
+        full_message: msg.text
+      };
+      await saveHomework(homework);
+      console.log(`📝 Сохранено ДЗ: ${detected.subject} → ${detected.homework}`);
     }
   }
 });
@@ -482,7 +358,7 @@ function findRelatedHomework(subjectFromSchedule, allHomework) {
 // Функция для формирования сообщения с ДЗ
 async function formatHomeworkMessage(dayInfo) {
   const lessons = schedule[dayInfo.name];
-  const homework = await getAllHomework();
+  const homework = await loadHomework();
 
   if (lessons.length === 0) {
     return null;
@@ -580,7 +456,7 @@ cron.schedule('0 18 * * *', () => {
 // Команда для просмотра всех сохраненных ДЗ
 bot.onText(/\/gethw/, async (msg) => {
   const chatId = msg.chat.id;
-  const homework = await getAllHomework();
+  const homework = await loadHomework();
 
   const subjects = Object.keys(homework);
 
@@ -636,9 +512,10 @@ bot.onText(/\/delhw (.+)/, async (msg, match) => {
     return;
   }
 
-  const deleted = await deleteHomework(subject);
-
-  if (deleted) {
+  const homework = await loadHomework();
+  if (homework[subject]) {
+    delete homework[subject];
+    await saveHomework(homework);
     await bot.sendMessage(chatId, `✅ ДЗ по предмету "${subject}" удалено`, { message_thread_id: HOMEWORK_TOPIC_ID });
   } else {
     await bot.sendMessage(chatId, `ℹ️ ДЗ по предмету "${subject}" не найдено`, { message_thread_id: HOMEWORK_TOPIC_ID });
@@ -656,45 +533,16 @@ bot.onText(/\/schedule/, async (msg) => {
   });
 });
 
-// Команда для экспорта всех ДЗ в JSON
-bot.onText(/\/export/, async (msg) => {
-  const chatId = msg.chat.id;
-
-  try {
-    const homework = await getAllHomework();
-    const scheduleId = await getLastScheduleMessageId();
-
-    const backup = {
-      homework: homework,
-      lastScheduleMessageId: scheduleId,
-      exportDate: new Date().toISOString()
-    };
-
-    const buffer = Buffer.from(JSON.stringify(backup, null, 2), 'utf-8');
-
-    await bot.sendDocument(chatId, buffer, {}, {
-      filename: `homework_backup_${new Date().toISOString().split('T')[0]}.json`,
-      contentType: 'application/json'
-    });
-
-    console.log('📦 Создан экспорт данных');
-  } catch (error) {
-    console.error('❌ Ошибка при экспорте:', error);
-    await bot.sendMessage(chatId, '❌ Ошибка при создании резервной копии');
-  }
-});
-
 // Команда для сброса сохраненного ID расписания
 bot.onText(/\/reset/, async (msg) => {
   const chatId = msg.chat.id;
 
   try {
-    await pool.query('DELETE FROM schedule_messages');
+    await fs.unlink(LAST_SCHEDULE_FILE);
     await bot.sendMessage(chatId, '✅ Сохраненный ID расписания сброшен');
     console.log('🔄 Сброшен ID последнего расписания');
   } catch (error) {
-    await bot.sendMessage(chatId, '❌ Ошибка при сбросе ID');
-    console.error('❌ Ошибка при сбросе:', error);
+    await bot.sendMessage(chatId, 'ℹ️ Нет сохраненного ID для сброса');
   }
 });
 
@@ -720,7 +568,7 @@ bot.onText(/\/start/, (msg) => {
     '• Алгебра - номера 100-102\n' +
     '• Физика: параграф 15, упр. 3\n' +
     '• Русский язык - стр. 45-50\n\n' +
-    'Бот автоматически сохранит ДЗ в PostgreSQL ✅\n\n' +
+    'Бот автоматически сохранит ДЗ ✅\n\n' +
     '⏰ <b>Автоматическая отправка в 18:00:</b>\n' +
     '1. Расписание на завтра → топик 3 (с удалением предыдущего)\n' +
     '2. ДЗ по предметам из расписания → топик 2\n\n' +
@@ -729,21 +577,14 @@ bot.onText(/\/start/, (msg) => {
     '/homework - ДЗ на завтра\n' +
     '/gethw - Все сохраненные ДЗ\n' +
     '/delhw предмет - Удалить ДЗ\n' +
-    '/export - Экспорт всех данных в JSON\n' +
     '/reset - Сбросить ID расписания\n' +
     '/test - Тест отправки (только в форуме)',
     { parse_mode: 'HTML' }
   );
 });
 
-// Запуск бота
-async function start() {
-  await initDatabase();
-  console.log('🤖 Бот запущен с PostgreSQL!');
-  console.log('⏰ Расписание и ДЗ будут отправляться каждый день в 18:00');
-  console.log(`📋 Расписание → Топик ${SCHEDULE_TOPIC_ID} (с автоудалением)`);
-  console.log(`📚 Домашнее задание → Топик ${HOMEWORK_TOPIC_ID}`);
-  console.log('👂 Слушаю топик ДЗ для автоматического сохранения по предметам...');
-}
-
-start().catch(console.error);
+console.log('🤖 Бот запущен!');
+console.log('⏰ Расписание и ДЗ будут отправляться каждый день в 18:00');
+console.log(`📋 Расписание → Топик ${SCHEDULE_TOPIC_ID} (с автоудалением)`);
+console.log(`📚 Домашнее задание → Топик ${HOMEWORK_TOPIC_ID}`);
+console.log('👂 Слушаю топик ДЗ для автоматического сохранения по предметам...');

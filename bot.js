@@ -204,11 +204,29 @@ async function deletePreviousSchedule() {
   try {
     const lastMessage = await loadLastScheduleMessageId();
     if (lastMessage && lastMessage.messageId) {
-      await bot.deleteMessage(FORUM_CHAT_ID, lastMessage.messageId);
-      console.log(`🗑️ Удалено предыдущее расписание (message_id: ${lastMessage.messageId})`);
+      try {
+        await bot.deleteMessage(FORUM_CHAT_ID, lastMessage.messageId);
+        console.log(`🗑️ Удалено предыдущее расписание (message_id: ${lastMessage.messageId})`);
+      } catch (deleteError) {
+        // Если сообщение не найдено или уже удалено - это нормально
+        if (deleteError.response && deleteError.response.body) {
+          const errorCode = deleteError.response.body.error_code;
+          const errorDesc = deleteError.response.body.description;
+
+          if (errorCode === 400 && errorDesc.includes('message to delete not found')) {
+            console.log(`ℹ️ Предыдущее сообщение уже удалено или не существует (message_id: ${lastMessage.messageId})`);
+          } else {
+            console.error(`❌ Ошибка при удалении сообщения: ${errorDesc}`);
+          }
+        } else {
+          console.error('❌ Неизвестная ошибка при удалении:', deleteError.message);
+        }
+      }
+    } else {
+      console.log('ℹ️ Нет сохраненного ID предыдущего расписания');
     }
   } catch (error) {
-    console.error('❌ Ошибка при удалении предыдущего расписания:', error);
+    console.error('❌ Ошибка при загрузке ID предыдущего расписания:', error.message);
   }
 }
 
@@ -404,7 +422,7 @@ async function sendScheduleToTopic() {
     // Сохраняем ID отправленного сообщения
     await saveLastScheduleMessageId(sentMessage.message_id);
 
-    console.log(`✅ Расписание на ${nextDay.name} (${nextDay.date}) отправлено в топик ${SCHEDULE_TOPIC_ID}`);
+    console.log(`✅ Расписание на ${nextDay.name} (${nextDay.date}) отправлено в топик ${SCHEDULE_TOPIC_ID} (message_id: ${sentMessage.message_id})`);
   } catch (error) {
     console.error('❌ Ошибка при отправке расписания:', error);
   }
@@ -544,6 +562,19 @@ bot.onText(/\/test/, async (msg) => {
   }
 });
 
+// Команда для сброса сохраненного ID расписания
+bot.onText(/\/reset/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  try {
+    await fs.unlink(LAST_SCHEDULE_FILE);
+    await bot.sendMessage(chatId, '✅ Сохраненный ID расписания сброшен');
+    console.log('🔄 Сброшен ID последнего расписания');
+  } catch (error) {
+    await bot.sendMessage(chatId, 'ℹ️ Нет сохраненного ID для сброса');
+  }
+});
+
 // Команда старт
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
@@ -563,6 +594,7 @@ bot.onText(/\/start/, (msg) => {
     '/homework - ДЗ на завтра\n' +
     '/gethw - Все сохраненные ДЗ\n' +
     '/delhw предмет - Удалить ДЗ\n' +
+    '/reset - Сбросить ID расписания\n' +
     '/test - Тест отправки (только в форуме)',
     { parse_mode: 'HTML' }
   );

@@ -529,10 +529,12 @@ bot.onText(/\/schedule/, async (msg) => {
   const message = formatScheduleMessage(nextDay);
 
   await deletePreviousSchedule();
-  await bot.sendMessage(chatId, message, {
+  const sentMessage = await bot.sendMessage(chatId, message, {
     message_thread_id: SCHEDULE_TOPIC_ID,
     parse_mode: 'HTML'
   });
+
+  await saveLastScheduleMessageId(sentMessage.message_id);
 });
 
 // Команда для сброса сохраненного ID расписания

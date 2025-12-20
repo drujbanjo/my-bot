@@ -16,6 +16,7 @@ const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
 const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || __dirname;
 const HOMEWORK_FILE = path.join(DATA_DIR, 'homework.json');
+const LAST_SCHEDULE_FILE = path.join(DATA_DIR, 'last_schedule.json');
 
 // Расписание по дням недели
 const schedule = {
@@ -176,6 +177,38 @@ async function saveHomework(homework) {
     await fs.writeFile(HOMEWORK_FILE, JSON.stringify(homework, null, 2), 'utf8');
   } catch (error) {
     console.error('❌ Ошибка при сохранении ДЗ:', error);
+  }
+}
+
+// Функция для загрузки ID последнего сообщения с расписанием
+async function loadLastScheduleMessageId() {
+  try {
+    const data = await fs.readFile(LAST_SCHEDULE_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    return null;
+  }
+}
+
+// Функция для сохранения ID последнего сообщения с расписанием
+async function saveLastScheduleMessageId(messageId) {
+  try {
+    await fs.writeFile(LAST_SCHEDULE_FILE, JSON.stringify({ messageId }, null, 2), 'utf8');
+  } catch (error) {
+    console.error('❌ Ошибка при сохранении ID сообщения:', error);
+  }
+}
+
+// Функция для удаления предыдущего сообщения с расписанием
+async function deletePreviousSchedule() {
+  try {
+    const lastMessage = await loadLastScheduleMessageId();
+    if (lastMessage && lastMessage.messageId) {
+      await bot.deleteMessage(FORUM_CHAT_ID, lastMessage.messageId);
+      console.log(`🗑️ Удалено предыдущее расписание (message_id: ${lastMessage.messageId})`);
+    }
+  } catch (error) {
+    console.error('❌ Ошибка при удалении предыдущего расписания:', error);
   }
 }
 
@@ -354,15 +387,23 @@ async function sendScheduleToTopic() {
   try {
     const nextDay = getNextDayName();
 
-    if (!nextDay) { // ✅ Проверка на Воскресенье (null)
+    if (!nextDay) {
       console.log('ℹ️ Сегодня Воскресенье, отправка расписания отменена.');
-      return
+      return;
     }
+
+    // Удаляем предыдущее расписание
+    await deletePreviousSchedule();
+
     const message = formatScheduleMessage(nextDay);
-    await bot.sendMessage(FORUM_CHAT_ID, message, {
-      message_thread_id: SCHEDULE_TOPIC_ID, // Топик 3
+    const sentMessage = await bot.sendMessage(FORUM_CHAT_ID, message, {
+      message_thread_id: SCHEDULE_TOPIC_ID,
       parse_mode: 'HTML'
     });
+
+    // Сохраняем ID отправленного сообщения
+    await saveLastScheduleMessageId(sentMessage.message_id);
+
     console.log(`✅ Расписание на ${nextDay.name} (${nextDay.date}) отправлено в топик ${SCHEDULE_TOPIC_ID}`);
   } catch (error) {
     console.error('❌ Ошибка при отправке расписания:', error);
@@ -373,16 +414,16 @@ async function sendScheduleToTopic() {
 async function sendHomeworkToTopic() {
   try {
     const nextDay = getNextDayName();
-    if (!nextDay) { // ✅ Проверка на Воскресенье (null)
+    if (!nextDay) {
       console.log('ℹ️ Сегодня Воскресенье, отправка ДЗ отменена.');
-      return
+      return;
     }
 
     const message = await formatHomeworkMessage(nextDay);
 
     if (message) {
       await bot.sendMessage(FORUM_CHAT_ID, message, {
-        message_thread_id: HOMEWORK_TOPIC_ID, // Топик 2
+        message_thread_id: HOMEWORK_TOPIC_ID,
         parse_mode: 'HTML'
       });
       console.log(`✅ ДЗ на ${nextDay.name} (${nextDay.date}) отправлено в топик ${HOMEWORK_TOPIC_ID}`);
@@ -436,7 +477,7 @@ bot.onText(/\/gethw/, async (msg) => {
   });
 
   await bot.sendMessage(chatId, message, {
-    message_thread_id: HOMEWORK_TOPIC_ID, // Топик 2, 
+    message_thread_id: HOMEWORK_TOPIC_ID,
     parse_mode: 'HTML'
   });
 });
@@ -449,7 +490,7 @@ bot.onText(/\/homework/, async (msg) => {
 
   if (message) {
     await bot.sendMessage(chatId, message, {
-      message_thread_id: HOMEWORK_TOPIC_ID, // Топик 2
+      message_thread_id: HOMEWORK_TOPIC_ID,
       parse_mode: 'HTML'
     });
   } else {
@@ -486,7 +527,7 @@ bot.onText(/\/schedule/, async (msg) => {
   const nextDay = getNextDayName();
   const message = formatScheduleMessage(nextDay);
   await bot.sendMessage(chatId, message, {
-    message_thread_id: SCHEDULE_TOPIC_ID,// Топик 3
+    message_thread_id: SCHEDULE_TOPIC_ID,
     parse_mode: 'HTML'
   });
 });
@@ -515,7 +556,7 @@ bot.onText(/\/start/, (msg) => {
     '• Русский язык - стр. 45-50\n\n' +
     'Бот автоматически сохранит ДЗ ✅\n\n' +
     '⏰ <b>Автоматическая отправка в 18:00:</b>\n' +
-    '1. Расписание на завтра → топик 3\n' +
+    '1. Расписание на завтра → топик 3 (с удалением предыдущего)\n' +
     '2. ДЗ по предметам из расписания → топик 2\n\n' +
     '🔧 <b>Команды:</b>\n' +
     '/schedule - Расписание на завтра\n' +
@@ -529,6 +570,6 @@ bot.onText(/\/start/, (msg) => {
 
 console.log('🤖 Бот запущен!');
 console.log('⏰ Расписание и ДЗ будут отправляться каждый день в 18:00');
-console.log(`📋 Расписание → Топик ${SCHEDULE_TOPIC_ID}`);
+console.log(`📋 Расписание → Топик ${SCHEDULE_TOPIC_ID} (с автоудалением)`);
 console.log(`📚 Домашнее задание → Топик ${HOMEWORK_TOPIC_ID}`);
 console.log('👂 Слушаю топик ДЗ для автоматического сохранения по предметам...');

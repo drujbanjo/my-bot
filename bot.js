@@ -1012,7 +1012,7 @@ bot.onText(/\/today/, async (msg) => {
   const chatId = msg.chat.id;
   const today = getTodayDayName();
 
-  let message = `${today.date}\n`;
+  let message = ``;
   message += formatScheduleMessage(today);
 
   await bot.sendMessage(chatId, message, {

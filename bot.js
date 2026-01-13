@@ -1,5 +1,4 @@
 require('dotenv').config();
-
 const TelegramBot = require('node-telegram-bot-api');
 
 const cron = require('node-cron');
@@ -39,96 +38,51 @@ const LAST_SCHEDULE_FILE = path.join(DATA_DIR, 'last_schedule.json');
 const schedule = {
 
   'Понедельник': [
-
     { number: 1, subject: 'Классный час', time: '13:10-13:55' },
-
     { number: 2, subject: 'Алгебра', time: '14:00-14:45' },
-
-    { number: 3, subject: 'Узбекский язык', time: '14:50-15:35' },
-
+    { number: 3, subject: 'Русский язык', time: '14:50-15:35' },
     { number: 4, subject: 'Химия', time: '15:40-16:25' },
-
     { number: 5, subject: 'Английский язык', time: '16:30-17:15' },
-
-    { number: 6, subject: 'Физкультура', time: '17:20-18:05' }
-
+    { number: 6, subject: 'Черчение', time: '17:20-18:05' }
   ],
-
   'Вторник': [
-
-    { number: 1, subject: 'ОГП', time: '13:10-13:55' },
-
-    { number: 2, subject: 'Биология', time: '14:00-14:45' },
-
-    { number: 3, subject: 'Информатика', time: '14:50-15:35' },
-
-    { number: 4, subject: 'Геометрия', time: '15:40-16:25' },
-
-    { number: 5, subject: 'География', time: '16:30-17:15' },
-
-    { number: 6, subject: 'Биология', time: '17:20-18:05' }
-
-  ],
-
-  'Среда': [
-
-    { number: 1, subject: 'Физкультура', time: '13:10-13:55' },
-
-    { number: 2, subject: 'Алгебра', time: '14:00-14:45' },
-
-    { number: 3, subject: 'Узбекский язык', time: '14:50-15:35' },
-
-    { number: 4, subject: 'Русский язык', time: '15:40-16:25' },
-
-    { number: 5, subject: 'Английский язык', time: '16:30-17:15' },
-
-    { number: 6, subject: 'Геометрия', time: '17:20-18:05' }
-
-  ],
-
-  'Четверг': [
-
-    { number: 1, subject: 'Технология', time: '13:10-13:55' },
-
+    { number: 1, subject: 'География', time: '13:10-13:55' },
     { number: 2, subject: 'Химия', time: '14:00-14:45' },
-
-    { number: 3, subject: 'Физика', time: '14:50-15:35' },
-
-    { number: 4, subject: 'Литература', time: '15:40-16:25' },
-
-    { number: 5, subject: 'История Узбекситана', time: '16:30-17:15' },
-
-    { number: 6, subject: 'Английский язык', time: '17:20-18:05' }
-
+    { number: 3, subject: 'Биология', time: '14:50-15:35' },
+    { number: 4, subject: 'Английский язык', time: '15:40-16:25' },
+    { number: 5, subject: 'Геометрия', time: '16:30-17:15' }
   ],
-
+  'Среда': [
+    { number: 1, subject: 'Физкультура', time: '13:10-13:55' },
+    { number: 2, subject: 'Технология', time: '14:00-14:45' },
+    { number: 3, subject: 'Информатика', time: '14:50-15:35' },
+    { number: 4, subject: 'История Узбекистана', time: '15:40-16:25' },
+    { number: 5, subject: 'Узбекский язык', time: '16:30-17:15' },
+    { number: 6, subject: 'Алгебра', time: '17:20-18:05' }
+  ],
+  'Четверг': [
+    { number: 0, subject: 'Английский язык', time: '12:15-13:00' },
+    { number: 1, subject: 'ОГП', time: '13:10-13:55' },
+    { number: 2, subject: 'Литература', time: '14:00-14:45' },
+    { number: 3, subject: 'Узбекский язык', time: '14:50-15:35' },
+    { number: 4, subject: 'Всемирная История', time: '15:40-16:25' }
+  ],
   'Пятница': [
-
-    { number: 1, subject: 'Физика', time: '13:10-13:55' },
-
-    { number: 2, subject: 'Русский язык', time: '14:00-14:45' },
-
-    { number: 3, subject: 'Всемирная история', time: '14:50-15:35' },
-
-    { number: 4, subject: 'Литература', time: '15:40-16:25' },
-
-    { number: 5, subject: 'Узбекский язык', time: '16:30-17:15' }
-
+    { number: 1, subject: 'Узбекский язык', time: '13:10-13:55' },
+    { number: 2, subject: 'Биология', time: '14:00-14:45' },
+    { number: 3, subject: 'Геометрия', time: '14:50-15:35' },
+    { number: 4, subject: 'Воспитание', time: '15:40-16:25' },
+    { number: 5, subject: 'История Узбекистана', time: '16:30-17:15' },
+    { number: 6, subject: 'Физика', time: '17:20-18:05' }
   ],
-
   'Суббота': [
-
-    { number: 1, subject: 'Биология', time: '13:10-13:55' },
-
+    { number: 0, subject: 'Физкультура', time: '12:15-13:00' },
+    { number: 1, subject: 'Алгебра', time: '13:10-13:55' },
     { number: 2, subject: 'География/Экономика', time: '14:00-14:45' },
-
-    { number: 3, subject: 'История Узбекистана', time: '14:50-15:35' },
-
-    { number: 4, subject: 'Алгебра', time: '15:40-16:25' },
-
-    { number: 5, subject: 'Черчение', time: '16:30-17:15' }
-
-  ],
+    { number: 3, subject: 'Русский язык', time: '14:50-15:35' },
+    { number: 4, subject: 'Физика', time: '15:40-16:25' },
+    { number: 5, subject: 'Литература', time: '16:30-17:15' }
+  ]
 
   'Воскресенье': []
 

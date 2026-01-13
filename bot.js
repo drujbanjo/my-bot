@@ -82,7 +82,7 @@ const schedule = {
     { number: 3, subject: 'Русский язык', time: '14:50-15:35' },
     { number: 4, subject: 'Физика', time: '15:40-16:25' },
     { number: 5, subject: 'Литература', time: '16:30-17:15' }
-  ]
+  ],
 
   'Воскресенье': []
 
@@ -519,6 +519,17 @@ bot.on('message', async (msg) => {
 
 });
 
+
+
+function getTodayDayName() {
+  const days = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+  const today = new Date();
+
+  return {
+    name: days[today.getDay()],
+    date: formatDate(today)
+  };
+}
 
 // Функция для получения названия следующего дня
 
@@ -995,6 +1006,19 @@ bot.onText(/\/schedule/, async (msg) => {
 
   await saveLastScheduleMessageId(sentMessage.message_id);
 
+});
+
+bot.onText(/\/today/, async (msg) => {
+  const chatId = msg.chat.id;
+  const today = getTodayDayName();
+
+  let message = `${today.date}\n`;
+  message += formatScheduleMessage(today);
+
+  await bot.sendMessage(chatId, message, {
+    message_thread_id: msg.message_thread_id || SCHEDULE_TOPIC_ID,
+    parse_mode: 'HTML'
+  });
 });
 
 

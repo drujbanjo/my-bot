@@ -842,7 +842,7 @@ cron.schedule('0 18 * * 1-6', async () => {
     console.error('❌ Ошибка при выполнении автоотправки:', error);
   }
 }, {
-  timezone: TIMEZONE // Используем переменную из .env
+  timezone: 'Asia/Tashkent' // Используем переменную из .env
 });
 
 // Команда для просмотра всех сохраненных ДЗ

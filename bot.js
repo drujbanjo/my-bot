@@ -828,30 +828,22 @@ async function sendHomeworkToTopic() {
 async function sendDailyUpdates() {
 
   await sendScheduleToTopic();
-
-  setTimeout(() => {
-
-    sendHomeworkToTopic();
-
-  }, 2000);
-
+  await sendHomeworkToTopic();
 }
 
 
 // Запуск cron задачи - каждый день в 18:00, кроме воскресенья
 
-cron.schedule('0 18 * * 1-6', () => {
-
-  console.log('⏰ Время отправки расписания и ДЗ (18:00)');
-
-  sendDailyUpdates();
-
+cron.schedule('0 18 * * 1-6', async () => {
+  console.log('⏰ Время отправки расписания и ДЗ (18:00 Ташкент)');
+  try {
+    await sendDailyUpdates();
+  } catch (error) {
+    console.error('❌ Ошибка при выполнении автоотправки:', error);
+  }
 }, {
-
-  timezone: TIMEZONE
-
+  timezone: TIMEZONE // Используем переменную из .env
 });
-
 
 // Команда для просмотра всех сохраненных ДЗ
 

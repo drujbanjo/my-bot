@@ -1,13 +1,12 @@
-FROM node:latest
+FROM oven/bun:latest
 
 
 WORKDIR /app
 COPY package.json package.json
-COPY package-lock.json package-lock.json
+COPY bun.lock bun.lock
 
-
-RUN npm i
+RUN bun i
 
 COPY . .
 
-CMD node bot.js
+CMD bun run start

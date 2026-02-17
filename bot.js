@@ -9,7 +9,6 @@ const FORUM_CHAT_ID = process.env.FORUM_CHAT_ID;
 const SCHEDULE_TOPIC_ID = 3;
 const HOMEWORK_TOPIC_ID = 2;
 
-// Проверка обязательных переменных окружения
 if (!BOT_TOKEN) {
   console.error("❌ BOT_TOKEN не найден в переменных окружения!");
   process.exit(1);
@@ -26,10 +25,7 @@ console.log(`✅ FORUM_CHAT_ID: ${FORUM_CHAT_ID}`);
 const bot = new TelegramBot(BOT_TOKEN, {
   polling: true,
   request: {
-    agentOptions: {
-      keepAlive: true,
-      keepAliveMsecs: 10000,
-    },
+    agentOptions: { keepAlive: true, keepAliveMsecs: 10000 },
     proxy: process.env.HTTPS_PROXY || process.env.HTTP_PROXY,
   },
   webHook: false,
@@ -38,6 +34,14 @@ const bot = new TelegramBot(BOT_TOKEN, {
 const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || __dirname;
 const HOMEWORK_FILE = path.join(DATA_DIR, "homework.json");
 const LAST_SCHEDULE_FILE = path.join(DATA_DIR, "last_schedule.json");
+
+// Предметы, у которых есть 2 группы — при вводе без группы сохраняем для обеих
+const GROUP_SUBJECTS = {
+  "Английский язык": ["Английский язык 1 группа", "Английский язык 2 группа"],
+  "Узбекский язык": ["Узбекский язык 1 группа", "Узбекский язык 2 группа"],
+  Информатика: ["Информатика 1 группа", "Информатика 2 группа"],
+  Технология: ["Технология Мальчики", "Технология Девочки"],
+};
 
 const schedule = {
   Понедельник: [
@@ -99,61 +103,50 @@ const dayAccusativeCase = {
   Воскресенье: "Воскресенье",
 };
 
+// Каждый ключ → канонический предмет (или "группа-предмет").
+// Ключи с группами → конкретная группа.
+// Ключи БЕЗ группы → базовое название (логика GROUP_SUBJECTS развернёт его в обе группы).
 const subjectAliases = {
+  // ── Алгебра ──────────────────────────────────────────────
   алгебра: "Алгебра",
   алгебре: "Алгебра",
   албебра: "Алгебра",
+  // ── Геометрия ────────────────────────────────────────────
   геометрия: "Геометрия",
   геометрии: "Геометрия",
   геометри: "Геометрия",
+  // ── Физика ───────────────────────────────────────────────
   физика: "Физика",
   физике: "Физика",
   физик: "Физика",
+  // ── Химия ────────────────────────────────────────────────
   химия: "Химия",
   химии: "Химия",
   хими: "Химия",
+  // ── Биология ─────────────────────────────────────────────
   биология: "Биология",
   биологии: "Биология",
   биологи: "Биология",
+  // ── География / Экономика ────────────────────────────────
   география: "География",
   географии: "География",
   географи: "География",
   экономика: "Экономика",
   экономик: "Экономика",
+  // ── История ──────────────────────────────────────────────
   "история узбекистана": "История Узбекистана",
   "истрия узбекистана": "История Узбекистана",
   "всемирная история": "Всемирная история",
   "всемирная истрия": "Всемирная история",
+  // ── Русский язык ─────────────────────────────────────────
   русский: "Русский язык",
   русскый: "Русский язык",
   русски: "Русский язык",
-  "узбекский 1 группа": "Узбекский язык 1 группа",
-  "узбекски 1 группа": "Узбекский язык 1 группа",
-  "узбекский 2 группа": "Узбекский язык 2 группа",
-  "узбекски 2 группа": "Узбекский язык 2 группа",
-  узбекский: "Узбекский язык 2 группа",
-  "английский 1 группа": "Английский язык 1 группа",
-  "английскый 1 группа": "Английский язык 1 группа",
-  "английски 1 группа": "Английский язык 1 группа",
-  "английский 2 группа": "Английский язык 2 группа",
-  "английскый 2 группа": "Английский язык 2 группа",
-  "английски 2 группа": "Английский язык 2 группа",
-  английский: "Английский язык 2 группа",
+  // ── Литература ───────────────────────────────────────────
   литература: "Литература",
   литературе: "Литература",
-  "информатика 1 группа": "Информатика 1 группа",
-  "информатике 1 группа": "Информатика 1 группа",
-  "информатик 1 группа": "Информатика 1 группа",
-  "информатика 2 группа": "Информатика 2 группа",
-  "информатике 2 группа": "Информатика 2 группа",
-  "информатик 2 группа": "Информатика 2 группа",
-  информатика: "Информатика 2 группа",
+  // ── ОГП / прочее ─────────────────────────────────────────
   огп: "ОГП",
-  "технология девочки": "Технология Девочки",
-  "технология девочк": "Технология Девочки",
-  "технология мальчики": "Технология Мальчики",
-  "технология мальчик": "Технология Мальчики",
-  технология: "Технология Мальчики",
   физкультура: "Физкультура",
   физра: "Физкультура",
   черчение: "Черчение",
@@ -163,7 +156,66 @@ const subjectAliases = {
   "классный час": "Классный час",
   "кл. час": "Классный час",
   "час будушего": "Классный час",
+
+  // ── Английский язык — конкретные группы ─────────────────
+  "английский 1 группа": "Английский язык 1 группа",
+  "английскый 1 группа": "Английский язык 1 группа",
+  "английски 1 группа": "Английский язык 1 группа",
+  "английский язык 1 группа": "Английский язык 1 группа",
+  "английский 2 группа": "Английский язык 2 группа",
+  "английскый 2 группа": "Английский язык 2 группа",
+  "английски 2 группа": "Английский язык 2 группа",
+  "английский язык 2 группа": "Английский язык 2 группа",
+  // без группы → обе (через GROUP_SUBJECTS)
+  английский: "Английский язык",
+  английскый: "Английский язык",
+  английски: "Английский язык",
+  "английский язык": "Английский язык",
+
+  // ── Узбекский язык — конкретные группы ──────────────────
+  "узбекский 1 группа": "Узбекский язык 1 группа",
+  "узбекски 1 группа": "Узбекский язык 1 группа",
+  "узбекский язык 1 группа": "Узбекский язык 1 группа",
+  "узбекский 2 группа": "Узбекский язык 2 группа",
+  "узбекски 2 группа": "Узбекский язык 2 группа",
+  "узбекский язык 2 группа": "Узбекский язык 2 группа",
+  // без группы → обе
+  узбекский: "Узбекский язык",
+  узбекски: "Узбекский язык",
+  "узбекский язык": "Узбекский язык",
+
+  // ── Информатика — конкретные группы ─────────────────────
+  "информатика 1 группа": "Информатика 1 группа",
+  "информатике 1 группа": "Информатика 1 группа",
+  "информатик 1 группа": "Информатика 1 группа",
+  "информатика 2 группа": "Информатика 2 группа",
+  "информатике 2 группа": "Информатика 2 группа",
+  "информатик 2 группа": "Информатика 2 группа",
+  // без группы → обе
+  информатика: "Информатика",
+  информатике: "Информатика",
+  информатик: "Информатика",
+
+  // ── Технология — конкретные подгруппы ───────────────────
+  "технология девочки": "Технология Девочки",
+  "технология девочк": "Технология Девочки",
+  "технология мальчики": "Технология Мальчики",
+  "технология мальчик": "Технология Мальчики",
+  // без уточнения → обе
+  технология: "Технология",
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Вспомогательная функция: разворачивает базовое название в список предметов
+// для сохранения. Если у предмета есть группы и алиас указывает на базу —
+// возвращает массив конкретных групп, иначе массив из одного предмета.
+// ─────────────────────────────────────────────────────────────────────────────
+function resolveSubjectsToSave(canonicalSubject) {
+  if (GROUP_SUBJECTS[canonicalSubject]) {
+    return GROUP_SUBJECTS[canonicalSubject]; // ["... 1 группа", "... 2 группа"]
+  }
+  return [canonicalSubject];
+}
 
 function getTashkentTime() {
   return new Date().toLocaleString("ru-RU", {
@@ -180,69 +232,53 @@ function getTashkentTime() {
 
 function shouldSendNow() {
   const now = new Date();
-  const tashkentTime = new Date(
+  const t = new Date(
     now.toLocaleString("en-US", { timeZone: "Asia/Tashkent" }),
   );
-
-  const hour = tashkentTime.getHours();
-  const minute = tashkentTime.getMinutes();
-  const day = tashkentTime.getDay();
-
-  // Проверяем: 17:40 и НЕ воскресенье (0)
-  return hour === 18 && minute === 10 && day !== 0;
+  return t.getHours() === 18 && t.getMinutes() === 10 && t.getDay() !== 0;
 }
 
 async function initStorage() {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
-
-    try {
-      await fs.access(HOMEWORK_FILE);
-    } catch {
-      await fs.writeFile(HOMEWORK_FILE, JSON.stringify({}), "utf8");
-      console.log("📄 Файл homework.json успешно создан");
+    for (const [file, init] of [
+      [HOMEWORK_FILE, "{}"],
+      [LAST_SCHEDULE_FILE, "{}"],
+    ]) {
+      try {
+        await fs.access(file);
+      } catch {
+        await fs.writeFile(file, init, "utf8");
+        console.log(`📄 Создан ${path.basename(file)}`);
+      }
     }
-
-    try {
-      await fs.access(LAST_SCHEDULE_FILE);
-    } catch {
-      await fs.writeFile(LAST_SCHEDULE_FILE, JSON.stringify({}), "utf8");
-      console.log("📄 Файл last_schedule.json успешно создан");
-    }
-
-    console.log(`🕐 Текущее время сервера: ${new Date().toISOString()}`);
-    console.log(`🕐 Текущее время в Ташкенте: ${getTashkentTime()}`);
-  } catch (error) {
-    console.error("❌ Ошибка при инициализации хранилища:", error);
+    console.log(`🕐 Время сервера: ${new Date().toISOString()}`);
+    console.log(`🕐 Время в Ташкенте: ${getTashkentTime()}`);
+  } catch (e) {
+    console.error("❌ Ошибка инициализации хранилища:", e);
   }
 }
 
 async function loadHomework() {
   try {
-    const data = await fs.readFile(HOMEWORK_FILE, "utf8");
-    return JSON.parse(data);
-  } catch (error) {
+    return JSON.parse(await fs.readFile(HOMEWORK_FILE, "utf8"));
+  } catch {
     return {};
   }
 }
 
-async function saveHomework(homework) {
+async function saveHomework(hw) {
   try {
-    await fs.writeFile(
-      HOMEWORK_FILE,
-      JSON.stringify(homework, null, 2),
-      "utf8",
-    );
-  } catch (error) {
-    console.error("❌ Ошибка при сохранении ДЗ:", error);
+    await fs.writeFile(HOMEWORK_FILE, JSON.stringify(hw, null, 2), "utf8");
+  } catch (e) {
+    console.error("❌ Ошибка сохранения ДЗ:", e);
   }
 }
 
 async function loadLastScheduleMessageId() {
   try {
-    const data = await fs.readFile(LAST_SCHEDULE_FILE, "utf8");
-    return JSON.parse(data);
-  } catch (error) {
+    return JSON.parse(await fs.readFile(LAST_SCHEDULE_FILE, "utf8"));
+  } catch {
     return null;
   }
 }
@@ -254,64 +290,58 @@ async function saveLastScheduleMessageId(messageId) {
       JSON.stringify({ messageId }, null, 2),
       "utf8",
     );
-  } catch (error) {
-    console.error("❌ Ошибка при сохранении ID сообщения:", error);
+  } catch (e) {
+    console.error("❌ Ошибка сохранения ID сообщения:", e);
   }
 }
 
 async function deletePreviousSchedule() {
   try {
-    const lastMessage = await loadLastScheduleMessageId();
-    if (lastMessage && lastMessage.messageId) {
-      try {
-        await bot.deleteMessage(FORUM_CHAT_ID, lastMessage.messageId);
-        console.log(
-          `🗑️ Удалено предыдущее расписание (message_id: ${lastMessage.messageId})`,
-        );
-      } catch (deleteError) {
-        if (deleteError.response && deleteError.response.body) {
-          const errorCode = deleteError.response.body.error_code;
-          const errorDesc = deleteError.response.body.description;
-          if (
-            errorCode === 400 &&
-            errorDesc.includes("message to delete not found")
-          ) {
-            console.log(
-              `ℹ️ Предыдущее сообщение уже удалено или не существует (message_id: ${lastMessage.messageId})`,
-            );
-          } else {
-            console.error(`❌ Ошибка при удалении сообщения: ${errorDesc}`);
-          }
-        } else {
-          console.error(
-            "❌ Неизвестная ошибка при удалении:",
-            deleteError.message,
-          );
-        }
-      }
-    } else {
-      console.log("ℹ️ Нет сохраненного ID предыдущего расписания");
+    const last = await loadLastScheduleMessageId();
+    if (!last?.messageId) {
+      console.log("ℹ️ Нет сохраненного ID расписания");
+      return;
     }
-  } catch (error) {
-    console.error(
-      "❌ Ошибка при загрузке ID предыдущего расписания:",
-      error.message,
-    );
+    try {
+      await bot.deleteMessage(FORUM_CHAT_ID, last.messageId);
+      console.log(`🗑️ Удалено предыдущее расписание (id: ${last.messageId})`);
+    } catch (e) {
+      const desc = e.response?.body?.description || e.message;
+      if (desc.includes("message to delete not found")) {
+        console.log(`ℹ️ Сообщение уже удалено (id: ${last.messageId})`);
+      } else {
+        console.error(`❌ Ошибка удаления: ${desc}`);
+      }
+    }
+  } catch (e) {
+    console.error("❌ Ошибка загрузки ID расписания:", e.message);
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Парсим сообщение в топике ДЗ.
+// Возвращает { subjects: string[], homework: string } или null.
+// subjects — массив (одного или двух предметов, если написано без группы).
+// ─────────────────────────────────────────────────────────────────────────────
 function detectSubjectFromMessage(text) {
-  const lowerText = text.toLowerCase();
-  for (const [alias, subject] of Object.entries(subjectAliases)) {
-    if (lowerText.startsWith(alias.toLowerCase())) {
-      const homeworkPart = text
+  const lower = text.toLowerCase();
+
+  // Сортируем по убыванию длины, чтобы «английский 1 группа» матчился
+  // раньше, чем просто «английский»
+  const sortedAliases = Object.entries(subjectAliases).sort(
+    ([a], [b]) => b.length - a.length,
+  );
+
+  for (const [alias, canonical] of sortedAliases) {
+    if (lower.startsWith(alias)) {
+      const hwPart = text
         .slice(alias.length)
         .replace(/^[:\s\-—]+/, "")
         .trim();
-      if (homeworkPart) {
+      if (hwPart) {
         return {
-          subject: subject,
-          homework: homeworkPart,
+          subjects: resolveSubjectsToSave(canonical),
+          homework: hwPart,
         };
       }
     }
@@ -320,25 +350,33 @@ function detectSubjectFromMessage(text) {
 }
 
 bot.on("message", async (msg) => {
-  // Логирование для отладки
   console.log(
-    `📨 Сообщение от: ${msg.chat.id}, тип: ${msg.chat.type}, топик: ${msg.message_thread_id || "основной"}`,
+    `📨 Chat: ${msg.chat.id}, тип: ${msg.chat.type}, топик: ${msg.message_thread_id ?? "основной"}`,
   );
 
   if (msg.message_thread_id == HOMEWORK_TOPIC_ID && msg.text) {
     const detected = detectSubjectFromMessage(msg.text);
     if (detected) {
-      const homework = await loadHomework();
-      homework[detected.subject] = {
-        text: detected.homework,
-        timestamp: new Date().toISOString(),
-        message_id: msg.message_id,
-        full_message: msg.text,
-      };
-      await saveHomework(homework);
-      console.log(
-        `📝 Сохранено ДЗ: ${detected.subject} → ${detected.homework}`,
-      );
+      const hw = await loadHomework();
+      const ts = new Date().toISOString();
+
+      for (const subj of detected.subjects) {
+        hw[subj] = {
+          text: detected.homework,
+          timestamp: ts,
+          message_id: msg.message_id,
+          full_message: msg.text,
+        };
+        console.log(`📝 Сохранено ДЗ: ${subj} → ${detected.homework}`);
+      }
+      await saveHomework(hw);
+
+      // Если записали сразу для 2 групп — дать понять в консоли
+      if (detected.subjects.length > 1) {
+        console.log(
+          `ℹ️ ДЗ сохранено для ${detected.subjects.length} групп: ${detected.subjects.join(", ")}`,
+        );
+      }
     }
   }
 });
@@ -353,14 +391,10 @@ function getTodayDayName() {
     "Пятница",
     "Суббота",
   ];
-  const now = new Date();
-  const tashkentTime = new Date(
-    now.toLocaleString("en-US", { timeZone: "Asia/Tashkent" }),
+  const t = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Tashkent" }),
   );
-  return {
-    name: days[tashkentTime.getDay()],
-    date: formatDate(tashkentTime),
-  };
+  return { name: days[t.getDay()], date: formatDate(t) };
 }
 
 function getNextDayName(forceMonday = false) {
@@ -373,190 +407,147 @@ function getNextDayName(forceMonday = false) {
     "Пятница",
     "Суббота",
   ];
-  const now = new Date();
-  const tashkentTime = new Date(
-    now.toLocaleString("en-US", { timeZone: "Asia/Tashkent" }),
+  const t = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Tashkent" }),
   );
-  const currentDayIndex = tashkentTime.getDay();
-
-  // Если воскресенье и не принудительный понедельник - возвращаем null
-  if (currentDayIndex === 0 && !forceMonday) {
-    return null;
-  }
-
-  const nextDay = new Date(tashkentTime);
-  let daysToAdd = 1;
-
-  if (currentDayIndex === 6 || currentDayIndex === 0) {
-    daysToAdd = currentDayIndex === 6 ? 2 : 1;
-  }
-
-  nextDay.setDate(tashkentTime.getDate() + daysToAdd);
-  return {
-    name: days[nextDay.getDay()],
-    date: formatDate(nextDay),
-  };
+  const idx = t.getDay();
+  if (idx === 0 && !forceMonday) return null;
+  const next = new Date(t);
+  next.setDate(t.getDate() + (idx === 6 ? 2 : idx === 0 ? 1 : 1));
+  return { name: days[next.getDay()], date: formatDate(next) };
 }
 
-function formatDate(date) {
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${day}.${month}`;
+function formatDate(d) {
+  return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function formatScheduleMessage(dayInfo) {
   const lessons = schedule[dayInfo.name];
-  let message = `${dayInfo.date}\n`;
-  if (lessons.length === 0) {
-    message += "Выходной! 🎉";
-  } else {
-    lessons.forEach((lesson) => {
-      message += `${lesson.number}. <b>${lesson.subject}</b> <i>(${lesson.time})</i>\n`;
-    });
-  }
-  return message;
+  let msg = `${dayInfo.date}\n`;
+  if (!lessons.length) return msg + "Выходной! 🎉";
+  lessons.forEach((l) => {
+    msg += `${l.number}. <b>${l.subject}</b> <i>(${l.time})</i>\n`;
+  });
+  return msg;
 }
 
-function findRelatedHomework(subjectFromSchedule, allHomework) {
+// ─────────────────────────────────────────────────────────────────────────────
+// Ищем ДЗ для предмета из расписания.
+// Учитывает: точное совпадение, «Английский язык» → «Английский язык 1/2 группа»,
+// а также обратное: предмет в расписании «Английский язык 1 группа» найдёт
+// ДЗ с ключом «Английский язык 1 группа» или «Английский язык».
+// ─────────────────────────────────────────────────────────────────────────────
+function findRelatedHomework(scheduleSubject, allHomework) {
   const results = [];
-  if (allHomework[subjectFromSchedule]) {
-    results.push({
-      subject: subjectFromSchedule,
-      homework: allHomework[subjectFromSchedule],
-    });
-  }
-  Object.keys(allHomework).forEach((hwSubject) => {
-    if (hwSubject !== subjectFromSchedule) {
-      if (hwSubject.startsWith(subjectFromSchedule + " ")) {
-        results.push({
-          subject: hwSubject,
-          homework: allHomework[hwSubject],
-        });
-      } else if (hwSubject.includes(subjectFromSchedule)) {
-        results.push({
-          subject: hwSubject,
-          homework: allHomework[hwSubject],
-        });
-      }
+  const seen = new Set();
+
+  const add = (subj) => {
+    if (!seen.has(subj) && allHomework[subj]) {
+      seen.add(subj);
+      results.push({ subject: subj, homework: allHomework[subj] });
     }
+  };
+
+  // 1. Точное совпадение
+  add(scheduleSubject);
+
+  // 2. Если предмет расписания — базовое название (без группы),
+  //    ищем все его подгруппы
+  if (GROUP_SUBJECTS[scheduleSubject]) {
+    GROUP_SUBJECTS[scheduleSubject].forEach(add);
+  }
+
+  // 3. Если предмет расписания — конкретная группа, ищем базовое ДЗ
+  //    (записанное без уточнения группы)
+  for (const [base, variants] of Object.entries(GROUP_SUBJECTS)) {
+    if (variants.includes(scheduleSubject)) {
+      add(base);
+      break;
+    }
+  }
+
+  // 4. Fallback: поиск по вхождению строки (старое поведение)
+  Object.keys(allHomework).forEach((hwSubj) => {
+    if (!seen.has(hwSubj) && hwSubj.includes(scheduleSubject)) add(hwSubj);
   });
+
   return results;
 }
 
 async function formatHomeworkMessage(dayInfo) {
   const lessons = schedule[dayInfo.name];
-  const homework = await loadHomework();
-  if (lessons.length === 0) {
-    return null;
-  }
-  let hasHomework = false;
-  const dayAccusative = dayAccusativeCase[dayInfo.name];
-  let message = `<b>ДЗ на ${dayAccusative} (${dayInfo.date})</b>\n`;
-  lessons.forEach((lesson) => {
-    const relatedHW = findRelatedHomework(lesson.subject, homework);
-    if (relatedHW.length > 0) {
-      relatedHW.forEach((hw) => {
-        message += `<b>${hw.subject} - </b>${hw.homework.text}\n`;
-        hasHomework = true;
-      });
-    }
+  if (!lessons.length) return null;
+  const hw = await loadHomework();
+  const dayAcc = dayAccusativeCase[dayInfo.name];
+  let msg = `<b>ДЗ на ${dayAcc} (${dayInfo.date})</b>\n`;
+  let hasAny = false;
+  lessons.forEach((l) => {
+    findRelatedHomework(l.subject, hw).forEach(({ subject, homework }) => {
+      msg += `<b>${subject} - </b>${homework.text}\n`;
+      hasAny = true;
+    });
   });
-  if (!hasHomework) {
-    return null;
-  }
-  return message.trim();
+  return hasAny ? msg.trim() : null;
 }
 
-async function sendWithRetry(sendFunction, maxRetries = 3, delay = 2000) {
-  for (let i = 0; i < maxRetries; i++) {
+async function sendWithRetry(fn, retries = 3, delay = 2000) {
+  for (let i = 0; i < retries; i++) {
     try {
-      return await sendFunction();
-    } catch (error) {
-      console.error(
-        `❌ Попытка ${i + 1}/${maxRetries} не удалась:`,
-        error.message,
-      );
-      if (i < maxRetries - 1) {
-        console.log(`⏳ Повтор через ${delay}мс...`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      } else {
-        throw error;
-      }
+      return await fn();
+    } catch (e) {
+      console.error(`❌ Попытка ${i + 1}/${retries}:`, e.message);
+      if (i < retries - 1) await new Promise((r) => setTimeout(r, delay));
+      else throw e;
     }
   }
 }
 
 async function sendScheduleToTopic() {
   try {
-    const nextDay = getNextDayName(); // Убрали true - теперь в воскресенье вернет null
+    const nextDay = getNextDayName();
     if (!nextDay) {
-      console.log("ℹ️ Сегодня воскресенье, отправка расписания отменена.");
+      console.log("ℹ️ Воскресенье, расписание не отправляется");
       return;
     }
-
     await deletePreviousSchedule();
-
-    const message = formatScheduleMessage(nextDay);
-
-    const sentMessage = await sendWithRetry(async () => {
-      return await bot.sendMessage(FORUM_CHAT_ID, message, {
+    const sent = await sendWithRetry(() =>
+      bot.sendMessage(FORUM_CHAT_ID, formatScheduleMessage(nextDay), {
         message_thread_id: SCHEDULE_TOPIC_ID,
         parse_mode: "HTML",
-      });
-    });
-
-    await saveLastScheduleMessageId(sentMessage.message_id);
+      }),
+    );
+    await saveLastScheduleMessageId(sent.message_id);
     console.log(
-      `✅ Расписание на ${nextDay.name} (${nextDay.date}) отправлено в топик ${SCHEDULE_TOPIC_ID} (message_id: ${sentMessage.message_id})`,
+      `✅ Расписание на ${nextDay.name} (${nextDay.date}) → топик ${SCHEDULE_TOPIC_ID} (id: ${sent.message_id})`,
     );
-  } catch (error) {
-    console.error(
-      "❌ Ошибка при отправке расписания после всех попыток:",
-      error.message,
-    );
-    console.error("Детали ошибки:", {
-      code: error.code,
-      message: error.message,
-      chatId: FORUM_CHAT_ID,
-      topicId: SCHEDULE_TOPIC_ID,
-    });
+  } catch (e) {
+    console.error("❌ Ошибка отправки расписания:", e.message);
   }
 }
 
 async function sendHomeworkToTopic() {
   try {
-    const nextDay = getNextDayName(); // Убрали true - теперь в воскресенье вернет null
+    const nextDay = getNextDayName();
     if (!nextDay) {
-      console.log("ℹ️ Сегодня воскресенье, отправка ДЗ отменена.");
+      console.log("ℹ️ Воскресенье, ДЗ не отправляется");
       return;
     }
-
-    const message = await formatHomeworkMessage(nextDay);
-    if (message) {
-      await sendWithRetry(async () => {
-        return await bot.sendMessage(FORUM_CHAT_ID, message, {
+    const msg = await formatHomeworkMessage(nextDay);
+    if (msg) {
+      await sendWithRetry(() =>
+        bot.sendMessage(FORUM_CHAT_ID, msg, {
           message_thread_id: HOMEWORK_TOPIC_ID,
           parse_mode: "HTML",
-        });
-      });
-
+        }),
+      );
       console.log(
-        `✅ ДЗ на ${nextDay.name} (${nextDay.date}) отправлено в топик ${HOMEWORK_TOPIC_ID}`,
+        `✅ ДЗ на ${nextDay.name} (${nextDay.date}) → топик ${HOMEWORK_TOPIC_ID}`,
       );
     } else {
       console.log(`ℹ️ Нет ДЗ на ${nextDay.name}`);
     }
-  } catch (error) {
-    console.error(
-      "❌ Ошибка при отправке ДЗ после всех попыток:",
-      error.message,
-    );
-    console.error("Детали ошибки:", {
-      code: error.code,
-      message: error.message,
-      chatId: FORUM_CHAT_ID,
-      topicId: HOMEWORK_TOPIC_ID,
-    });
+  } catch (e) {
+    console.error("❌ Ошибка отправки ДЗ:", e.message);
   }
 }
 
@@ -568,149 +559,135 @@ async function sendDailyUpdates() {
 
 cron.schedule("* * * * *", async () => {
   if (shouldSendNow()) {
-    console.log("⏰ Время отправки расписания и ДЗ (17:40 Ташкент)");
+    console.log("⏰ Время отправки (18:10 Ташкент)");
     try {
       await sendDailyUpdates();
-    } catch (error) {
-      console.error("❌ Ошибка при выполнении автоотправки:", error);
+    } catch (e) {
+      console.error("❌ Ошибка автоотправки:", e);
     }
   }
 });
 
-setInterval(() => {
-  console.log(`🕐 Heartbeat: ${getTashkentTime()}`);
-}, 3600000);
+setInterval(() => console.log(`🕐 Heartbeat: ${getTashkentTime()}`), 3600000);
+
+// ─── Команды ─────────────────────────────────────────────────────────────────
 
 bot.onText(/\/gethw/, async (msg) => {
-  const chatId = msg.chat.id;
-  const homework = await loadHomework();
-  const subjects = Object.keys(homework);
-  if (subjects.length === 0) {
-    await bot.sendMessage(chatId, "Домашние задания пока не сохранены", {
+  const hw = await loadHomework();
+  const keys = Object.keys(hw);
+  if (!keys.length) {
+    await bot.sendMessage(msg.chat.id, "Домашние задания пока не сохранены", {
       message_thread_id: HOMEWORK_TOPIC_ID,
     });
     return;
   }
-  let message = "📚 <b>Все сохраненные ДЗ:</b>\n\n";
-  subjects.forEach((subject) => {
-    const hw = homework[subject];
-    const date = new Date(hw.timestamp).toLocaleString("ru-RU", {
+  let text = "📚 <b>Все сохраненные ДЗ:</b>\n\n";
+  keys.forEach((subj) => {
+    const { text: t, timestamp } = hw[subj];
+    const date = new Date(timestamp).toLocaleString("ru-RU", {
       day: "2-digit",
       month: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
     });
-    message += `<b>${subject}</b> (${date}):\n${hw.text}\n\n`;
+    text += `<b>${subj}</b> (${date}):\n${t}\n\n`;
   });
-  await bot.sendMessage(chatId, message, {
+  await bot.sendMessage(msg.chat.id, text, {
     message_thread_id: HOMEWORK_TOPIC_ID,
     parse_mode: "HTML",
   });
 });
 
 bot.onText(/\/homework/, async (msg) => {
-  const chatId = msg.chat.id;
   const nextDay = getNextDayName(true);
-  const message = await formatHomeworkMessage(nextDay);
-  if (message) {
-    await bot.sendMessage(chatId, message, {
-      message_thread_id: HOMEWORK_TOPIC_ID,
-      parse_mode: "HTML",
-    });
-  } else {
-    const dayAccusative = dayAccusativeCase[nextDay.name];
-    await bot.sendMessage(
-      chatId,
-      `Нет ДЗ на ${dayAccusative} (${nextDay.date})`,
-      { message_thread_id: HOMEWORK_TOPIC_ID },
-    );
-  }
+  const text = await formatHomeworkMessage(nextDay);
+  const reply =
+    text || `Нет ДЗ на ${dayAccusativeCase[nextDay.name]} (${nextDay.date})`;
+  await bot.sendMessage(msg.chat.id, reply, {
+    message_thread_id: HOMEWORK_TOPIC_ID,
+    parse_mode: text ? "HTML" : undefined,
+  });
 });
 
 bot.onText(/\/delhw (.+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const subjectInput = match[1].trim().toLowerCase();
-  const subject = subjectAliases[subjectInput];
-  if (!subject) {
-    await bot.sendMessage(chatId, "❌ Предмет не найден", {
+  const input = match[1].trim().toLowerCase();
+  const canonical = subjectAliases[input];
+  if (!canonical) {
+    await bot.sendMessage(msg.chat.id, "❌ Предмет не найден", {
       message_thread_id: HOMEWORK_TOPIC_ID,
     });
     return;
   }
-  const homework = await loadHomework();
-  if (homework[subject]) {
-    delete homework[subject];
-    await saveHomework(homework);
-    await bot.sendMessage(chatId, `✅ ДЗ по предмету "${subject}" удалено`, {
-      message_thread_id: HOMEWORK_TOPIC_ID,
-    });
-  } else {
-    await bot.sendMessage(chatId, `ℹ️ ДЗ по предмету "${subject}" не найдено`, {
-      message_thread_id: HOMEWORK_TOPIC_ID,
-    });
-  }
+  const targets = resolveSubjectsToSave(canonical);
+  const hw = await loadHomework();
+  const deleted = [];
+  targets.forEach((s) => {
+    if (hw[s]) {
+      delete hw[s];
+      deleted.push(s);
+    }
+  });
+  await saveHomework(hw);
+  const reply = deleted.length
+    ? `✅ Удалено ДЗ: ${deleted.join(", ")}`
+    : `ℹ️ ДЗ не найдено для: ${targets.join(", ")}`;
+  await bot.sendMessage(msg.chat.id, reply, {
+    message_thread_id: HOMEWORK_TOPIC_ID,
+  });
 });
 
 bot.onText(/\/schedule/, async (msg) => {
-  const chatId = msg.chat.id;
   const nextDay = getNextDayName(true);
-  const message = formatScheduleMessage(nextDay);
   await deletePreviousSchedule();
-  const sentMessage = await bot.sendMessage(chatId, message, {
-    message_thread_id: SCHEDULE_TOPIC_ID,
-    parse_mode: "HTML",
-  });
-  await saveLastScheduleMessageId(sentMessage.message_id);
+  const sent = await bot.sendMessage(
+    msg.chat.id,
+    formatScheduleMessage(nextDay),
+    {
+      message_thread_id: SCHEDULE_TOPIC_ID,
+      parse_mode: "HTML",
+    },
+  );
+  await saveLastScheduleMessageId(sent.message_id);
 });
 
 bot.onText(/\/today/, async (msg) => {
-  const chatId = msg.chat.id;
   const today = getTodayDayName();
-  let message = ``;
-  message += formatScheduleMessage(today);
-  await bot.sendMessage(chatId, message, {
+  await bot.sendMessage(msg.chat.id, formatScheduleMessage(today), {
     message_thread_id: msg.message_thread_id || SCHEDULE_TOPIC_ID,
     parse_mode: "HTML",
   });
 });
 
 bot.onText(/\/time/, async (msg) => {
-  const chatId = msg.chat.id;
-  const serverTime = new Date().toISOString();
-  const tashkentTime = getTashkentTime();
   await bot.sendMessage(
-    chatId,
-    `🕐 Время сервера: ${serverTime}\n🕐 Время в Ташкенте: ${tashkentTime}`,
+    msg.chat.id,
+    `🕐 Время сервера: ${new Date().toISOString()}\n🕐 Время в Ташкенте: ${getTashkentTime()}`,
   );
 });
 
 bot.onText(/\/reset/, async (msg) => {
-  const chatId = msg.chat.id;
   try {
     await fs.unlink(LAST_SCHEDULE_FILE);
-    await bot.sendMessage(chatId, "✅ Сохраненный ID расписания сброшен");
-    console.log("🔄 Сброшен ID последнего расписания");
-  } catch (error) {
-    await bot.sendMessage(chatId, "ℹ️ Нет сохраненного ID для сброса");
+    await bot.sendMessage(msg.chat.id, "✅ Сохраненный ID расписания сброшен");
+  } catch {
+    await bot.sendMessage(msg.chat.id, "ℹ️ Нет сохраненного ID для сброса");
   }
 });
 
 bot.onText(/\/test/, async (msg) => {
-  const chatId = msg.chat.id;
-  if (chatId.toString() === FORUM_CHAT_ID) {
+  if (msg.chat.id.toString() === FORUM_CHAT_ID) {
     await sendDailyUpdates();
     await bot.sendMessage(
-      chatId,
-      "✅ Тестовая отправка выполнена!\n📋 Расписание → Топик 3\n📚 ДЗ → Топик 2",
+      msg.chat.id,
+      "✅ Тестовая отправка!\n📋 Расписание → Топик 3\n📚 ДЗ → Топик 2",
     );
   } else {
-    await bot.sendMessage(chatId, "Эта команда работает только в форуме!");
+    await bot.sendMessage(msg.chat.id, "Эта команда работает только в форуме!");
   }
 });
 
 bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-  const chatInfo = `
+  const info = `
 <b>Информация о чате:</b>
 Chat ID: <code>${msg.chat.id}</code>
 Chat Type: ${msg.chat.type}
@@ -721,28 +698,23 @@ ${msg.message_thread_id ? `Thread ID: ${msg.message_thread_id}` : ""}
 FORUM_CHAT_ID: <code>${FORUM_CHAT_ID}</code>
 SCHEDULE_TOPIC_ID: ${SCHEDULE_TOPIC_ID}
 HOMEWORK_TOPIC_ID: ${HOMEWORK_TOPIC_ID}
-  `;
-  bot.sendMessage(chatId, chatInfo, { parse_mode: "HTML" });
+  `.trim();
+  bot.sendMessage(msg.chat.id, info, { parse_mode: "HTML" });
 });
 
 bot.onText(/\/debug/, async (msg) => {
-  const chatId = msg.chat.id;
   try {
-    const testMessage = await bot.sendMessage(
-      FORUM_CHAT_ID,
-      "🔍 Тестовое сообщение",
-      {
-        message_thread_id: SCHEDULE_TOPIC_ID,
-      },
-    );
+    const test = await bot.sendMessage(FORUM_CHAT_ID, "🔍 Тестовое сообщение", {
+      message_thread_id: SCHEDULE_TOPIC_ID,
+    });
     await bot.sendMessage(
-      chatId,
-      `✅ Тест успешен! Message ID: ${testMessage.message_id}`,
+      msg.chat.id,
+      `✅ Тест успешен! Message ID: ${test.message_id}`,
     );
-  } catch (error) {
+  } catch (e) {
     await bot.sendMessage(
-      chatId,
-      `❌ Тест не прошел:\n${error.message}\nКод: ${error.code}`,
+      msg.chat.id,
+      `❌ Тест не прошел:\n${e.message}\nКод: ${e.code}`,
     );
   }
 });
@@ -750,13 +722,13 @@ bot.onText(/\/debug/, async (msg) => {
 (async () => {
   await initStorage();
   console.log("🤖 Бот запущен!");
-  console.log(
-    "⏰ Расписание и ДЗ будут отправляться каждый день в 17:40 (Пн-Сб)",
-  );
+  console.log("⏰ Автоотправка каждый день в 18:10 (Пн-Сб)");
   console.log("ℹ️ В воскресенье автоотправка отключена");
   console.log(`📋 Расписание → Топик ${SCHEDULE_TOPIC_ID} (с автоудалением)`);
   console.log(`📚 Домашнее задание → Топик ${HOMEWORK_TOPIC_ID}`);
+  console.log("👂 Слушаю топик ДЗ...");
   console.log(
-    "👂 Слушаю топик ДЗ для автоматического сохранения по предметам...",
+    "📌 Предметы с группами:",
+    Object.keys(GROUP_SUBJECTS).join(", "),
   );
 })();

@@ -71,7 +71,7 @@ const schedule = {
     { number: 1, subject: "ОГП", time: "13:10-13:55" },
     { number: 2, subject: "Литература", time: "14:00-14:45" },
     { number: 3, subject: "Узбекский язык", time: "14:50-15:35" },
-    { number: 4, subject: "Всемирная История", time: "15:40-16:25" },
+    { number: 4, subject: "Всемирная история", time: "15:40-16:25" },
   ],
   Пятница: [
     { number: 1, subject: "Узбекский язык", time: "13:10-13:55" },
@@ -429,24 +429,49 @@ function formatScheduleMessage(dayInfo) {
 function findRelatedHomework(scheduleSubject, allHomework) {
   const results = [],
     seen = new Set();
+  
+  // Приводим предмет из расписания к нижнему регистру для поиска
+  const scheduleLower = scheduleSubject.toLowerCase();
+  
   const add = (subj) => {
     if (!seen.has(subj) && allHomework[subj]) {
       seen.add(subj);
       results.push({ subject: subj, homework: allHomework[subj] });
     }
   };
-  add(scheduleSubject);
-  if (GROUP_SUBJECTS[scheduleSubject])
+
+  // 1. Прямое совпадение и поиск по ключам ДЗ
+  Object.keys(allHomework).forEach((hwSubj) => {
+    const hwLower = hwSubj.toLowerCase();
+    
+    // Если названия совпадают (без учета регистра)
+    if (hwLower === scheduleLower) {
+      add(hwSubj);
+    }
+    // Если предмет из расписания составной (напр. "География/Экономика")
+    else if (scheduleLower.includes("/")) {
+      const parts = scheduleLower.split("/").map(p => p.trim());
+      if (parts.includes(hwLower)) {
+        add(hwSubj);
+      }
+    }
+    // Если ДЗ содержит название предмета (напр. "Английский язык 1 группа" содержит "Английский язык")
+    else if (hwLower.includes(scheduleLower)) {
+      add(hwSubj);
+    }
+  });
+
+  // 2. Групповые предметы (Английский, Узбекский и т.д.)
+  if (GROUP_SUBJECTS[scheduleSubject]) {
     GROUP_SUBJECTS[scheduleSubject].forEach(add);
+  }
+  
   for (const [base, variants] of Object.entries(GROUP_SUBJECTS)) {
-    if (variants.includes(scheduleSubject)) {
+    if (variants.includes(scheduleSubject) || variants.some(v => v.toLowerCase() === scheduleLower)) {
       add(base);
-      break;
     }
   }
-  Object.keys(allHomework).forEach((hwSubj) => {
-    if (!seen.has(hwSubj) && hwSubj.includes(scheduleSubject)) add(hwSubj);
-  });
+
   return results;
 }
 

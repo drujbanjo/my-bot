@@ -625,37 +625,6 @@ bot.onText(/\/homework/, async (msg) => {
   }
 });
 
-bot.onText(/\/delhw (.+)/, async (msg, match) => {
-  const input = match[1].trim().toLowerCase();
-  const canonical = subjectAliases[input];
-  if (!canonical) {
-    await bot.sendMessage(msg.chat.id, "❌ Предмет не найден", {
-      ...(msg.message_thread_id
-        ? { message_thread_id: msg.message_thread_id }
-        : {}),
-    });
-    return;
-  }
-  const targets = resolveSubjectsToSave(canonical);
-  const hw = await loadHomework();
-  const deleted = [];
-  targets.forEach((s) => {
-    if (hw[s]) {
-      delete hw[s];
-      deleted.push(s);
-    }
-  });
-  await saveHomework(hw);
-  const reply = deleted.length
-    ? `✅ Удалено ДЗ: ${deleted.join(", ")}`
-    : `ℹ️ ДЗ не найдено для: ${targets.join(", ")}`;
-  await bot.sendMessage(msg.chat.id, reply, {
-    ...(msg.message_thread_id
-      ? { message_thread_id: msg.message_thread_id }
-      : {}),
-  });
-});
-
 bot.onText(/\/schedule/, async (msg) => {
   const nextDay = getNextDayName(true);
   await deletePreviousSchedule();
@@ -678,47 +647,29 @@ bot.onText(/\/schedule/, async (msg) => {
 
 bot.onText(/\/today/, async (msg) => {
   const today = getTodayDayName();
-  await bot.sendMessage(msg.chat.id, formatScheduleMessage(today), {
-    parse_mode: "HTML",
-    ...(msg.message_thread_id
-      ? { message_thread_id: msg.message_thread_id }
-      : {}),
-  });
-});
+  const threadOpts = msg.message_thread_id
+    ? { message_thread_id: msg.message_thread_id }
+    : {};
 
-bot.onText(/\/time/, async (msg) => {
-  const days = [
-    "Воскресенье",
-    "Понедельник",
-    "Вторник",
-    "Среда",
-    "Четверг",
-    "Пятница",
-    "Суббота",
-  ];
-  const t = new Date(
-    new Date().toLocaleString("en-US", { timeZone: "Asia/Tashkent" }),
-  );
-  const todayName = days[t.getDay()];
-  const st = sendTimeByDay[todayName];
-  const nextSend = st
-    ? `📬 Отправка ДЗ сегодня в ${String(st.hour).padStart(2, "0")}:${String(st.minute).padStart(2, "0")} (Ташкент)`
-    : "📬 Сегодня отправки нет (выходной)";
-  await bot.sendMessage(
-    msg.chat.id,
-    `🕐 Время сервера: ${new Date().toISOString()}\n🕐 Время в Ташкенте: ${getTashkentTime()}\n${nextSend}`,
-  );
-});
-
-bot.onText(/\/reset/, async (msg) => {
   try {
-    await fs.unlink(LAST_SCHEDULE_FILE);
-    await bot.sendMessage(msg.chat.id, "✅ Сохраненный ID расписания сброшен");
-  } catch {
-    await bot.sendMessage(msg.chat.id, "ℹ️ Нет сохраненного ID для сброса");
+    // Расписание
+    await bot.sendMessage(msg.chat.id, formatScheduleMessage(today), {
+      parse_mode: "HTML",
+      ...threadOpts,
+    });
+
+    // ДЗ на сегодня
+    const hwText = await formatHomeworkMessage(today);
+    const hwReply =
+      hwText || `Нет ДЗ на ${dayAccusativeCase[today.name]} (${today.date})`;
+    await bot.sendMessage(msg.chat.id, hwReply, {
+      ...(hwText ? { parse_mode: "HTML" } : {}),
+      ...threadOpts,
+    });
+  } catch (e) {
+    console.error("❌ Ошибка /today:", e.message);
   }
 });
-
 bot.onText(/\/test/, async (msg) => {
   if (msg.chat.id.toString() === FORUM_CHAT_ID) {
     await sendDailyUpdates();
@@ -746,24 +697,6 @@ HOMEWORK_TOPIC_ID: ${HOMEWORK_TOPIC_ID}
   `.trim();
   bot.sendMessage(msg.chat.id, info, { parse_mode: "HTML" });
 });
-
-bot.onText(/\/debug/, async (msg) => {
-  try {
-    const test = await bot.sendMessage(FORUM_CHAT_ID, "🔍 Тестовое сообщение", {
-      message_thread_id: SCHEDULE_TOPIC_ID,
-    });
-    await bot.sendMessage(
-      msg.chat.id,
-      `✅ Тест успешен! Message ID: ${test.message_id}`,
-    );
-  } catch (e) {
-    await bot.sendMessage(
-      msg.chat.id,
-      `❌ Тест не прошел:\n${e.message}\nКод: ${e.code}`,
-    );
-  }
-});
-
 (async () => {
   await initStorage();
   console.log("🤖 Бот запущен!");

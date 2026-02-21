@@ -92,18 +92,13 @@ const schedule = {
   Воскресенье: [],
 };
 
-// ─── Время окончания последнего урока + 5 минут ───────────────────────────
-// Берётся из расписания автоматически: парсим "HH:MM-HH:MM" и берём конец.
-// sendTime: { hour, minute } по Ташкенту
 const sendTimeByDay = (() => {
   const result = {};
   for (const [day, lessons] of Object.entries(schedule)) {
     if (!lessons.length) continue;
-    // последний урок в массиве
     const lastLesson = lessons[lessons.length - 1];
-    const endStr = lastLesson.time.split("-")[1]; // "18:05"
+    const endStr = lastLesson.time.split("-")[1];
     let [h, m] = endStr.split(":").map(Number);
-    // +5 минут
     m += 5;
     if (m >= 60) {
       h += 1;
@@ -114,7 +109,6 @@ const sendTimeByDay = (() => {
   return result;
 })();
 
-// Лог рассчитанного времени
 for (const [day, t] of Object.entries(sendTimeByDay)) {
   const hh = String(t.hour).padStart(2, "0");
   const mm = String(t.minute).padStart(2, "0");
@@ -229,7 +223,6 @@ function getTashkentTime() {
   });
 }
 
-// ─── Проверяем: совпадает ли текущее время (Ташкент) с временем отправки дня ─
 function shouldSendNow() {
   const now = new Date();
   const t = new Date(
@@ -246,7 +239,7 @@ function shouldSendNow() {
   ];
   const todayName = days[t.getDay()];
   const sendTime = sendTimeByDay[todayName];
-  if (!sendTime) return false; // Воскресенье — нет уроков
+  if (!sendTime) return false;
   return t.getHours() === sendTime.hour && t.getMinutes() === sendTime.minute;
 }
 
@@ -429,49 +422,33 @@ function formatScheduleMessage(dayInfo) {
 function findRelatedHomework(scheduleSubject, allHomework) {
   const results = [],
     seen = new Set();
-  
-  // Приводим предмет из расписания к нижнему регистру для поиска
   const scheduleLower = scheduleSubject.toLowerCase();
-  
   const add = (subj) => {
     if (!seen.has(subj) && allHomework[subj]) {
       seen.add(subj);
       results.push({ subject: subj, homework: allHomework[subj] });
     }
   };
-
-  // 1. Прямое совпадение и поиск по ключам ДЗ
   Object.keys(allHomework).forEach((hwSubj) => {
     const hwLower = hwSubj.toLowerCase();
-    
-    // Если названия совпадают (без учета регистра)
     if (hwLower === scheduleLower) {
       add(hwSubj);
-    }
-    // Если предмет из расписания составной (напр. "География/Экономика")
-    else if (scheduleLower.includes("/")) {
-      const parts = scheduleLower.split("/").map(p => p.trim());
-      if (parts.includes(hwLower)) {
-        add(hwSubj);
-      }
-    }
-    // Если ДЗ содержит название предмета (напр. "Английский язык 1 группа" содержит "Английский язык")
-    else if (hwLower.includes(scheduleLower)) {
+    } else if (scheduleLower.includes("/")) {
+      const parts = scheduleLower.split("/").map((p) => p.trim());
+      if (parts.includes(hwLower)) add(hwSubj);
+    } else if (hwLower.includes(scheduleLower)) {
       add(hwSubj);
     }
   });
-
-  // 2. Групповые предметы (Английский, Узбекский и т.д.)
-  if (GROUP_SUBJECTS[scheduleSubject]) {
+  if (GROUP_SUBJECTS[scheduleSubject])
     GROUP_SUBJECTS[scheduleSubject].forEach(add);
-  }
-  
   for (const [base, variants] of Object.entries(GROUP_SUBJECTS)) {
-    if (variants.includes(scheduleSubject) || variants.some(v => v.toLowerCase() === scheduleLower)) {
+    if (
+      variants.includes(scheduleSubject) ||
+      variants.some((v) => v.toLowerCase() === scheduleLower)
+    )
       add(base);
-    }
   }
-
   return results;
 }
 
@@ -558,6 +535,9 @@ async function sendDailyUpdates() {
   await sendHomeworkToTopic();
 }
 
+// ─── FIX: флаг защиты от повторной отправки в одну минуту ───────────────────
+let lastSentMinute = null;
+
 cron.schedule("* * * * *", async () => {
   if (shouldSendNow()) {
     const days = [
@@ -574,6 +554,14 @@ cron.schedule("* * * * *", async () => {
     );
     const todayName = days[t.getDay()];
     const st = sendTimeByDay[todayName];
+    const minuteKey = `${todayName}-${st.hour}:${st.minute}`;
+
+    if (lastSentMinute === minuteKey) {
+      console.log(`⏭️ Уже отправлено в эту минуту (${minuteKey}), пропуск`);
+      return;
+    }
+    lastSentMinute = minuteKey;
+
     console.log(
       `⏰ Время отправки (${String(st.hour).padStart(2, "0")}:${String(st.minute).padStart(2, "0")} Ташкент — конец уроков + 5 мин)`,
     );
@@ -581,6 +569,7 @@ cron.schedule("* * * * *", async () => {
       await sendDailyUpdates();
     } catch (e) {
       console.error("❌ Ошибка автоотправки:", e);
+      lastSentMinute = null; // сброс чтобы попробовать снова
     }
   }
 });
@@ -594,7 +583,9 @@ bot.onText(/\/gethw/, async (msg) => {
   const keys = Object.keys(hw);
   if (!keys.length) {
     await bot.sendMessage(msg.chat.id, "Домашние задания пока не сохранены", {
-      message_thread_id: HOMEWORK_TOPIC_ID,
+      ...(msg.message_thread_id
+        ? { message_thread_id: msg.message_thread_id }
+        : {}),
     });
     return;
   }
@@ -610,8 +601,10 @@ bot.onText(/\/gethw/, async (msg) => {
     text += `<b>${subj}</b> (${date}):\n${t}\n\n`;
   });
   await bot.sendMessage(msg.chat.id, text, {
-    message_thread_id: HOMEWORK_TOPIC_ID,
     parse_mode: "HTML",
+    ...(msg.message_thread_id
+      ? { message_thread_id: msg.message_thread_id }
+      : {}),
   });
 });
 
@@ -620,10 +613,16 @@ bot.onText(/\/homework/, async (msg) => {
   const text = await formatHomeworkMessage(nextDay);
   const reply =
     text || `Нет ДЗ на ${dayAccusativeCase[nextDay.name]} (${nextDay.date})`;
-  await bot.sendMessage(msg.chat.id, reply, {
-    message_thread_id: HOMEWORK_TOPIC_ID,
-    parse_mode: text ? "HTML" : undefined,
-  });
+  try {
+    await bot.sendMessage(msg.chat.id, reply, {
+      ...(text ? { parse_mode: "HTML" } : {}),
+      ...(msg.message_thread_id
+        ? { message_thread_id: msg.message_thread_id }
+        : {}),
+    });
+  } catch (e) {
+    console.error("❌ Ошибка /homework:", e.message);
+  }
 });
 
 bot.onText(/\/delhw (.+)/, async (msg, match) => {
@@ -631,7 +630,9 @@ bot.onText(/\/delhw (.+)/, async (msg, match) => {
   const canonical = subjectAliases[input];
   if (!canonical) {
     await bot.sendMessage(msg.chat.id, "❌ Предмет не найден", {
-      message_thread_id: HOMEWORK_TOPIC_ID,
+      ...(msg.message_thread_id
+        ? { message_thread_id: msg.message_thread_id }
+        : {}),
     });
     return;
   }
@@ -649,29 +650,39 @@ bot.onText(/\/delhw (.+)/, async (msg, match) => {
     ? `✅ Удалено ДЗ: ${deleted.join(", ")}`
     : `ℹ️ ДЗ не найдено для: ${targets.join(", ")}`;
   await bot.sendMessage(msg.chat.id, reply, {
-    message_thread_id: HOMEWORK_TOPIC_ID,
+    ...(msg.message_thread_id
+      ? { message_thread_id: msg.message_thread_id }
+      : {}),
   });
 });
 
 bot.onText(/\/schedule/, async (msg) => {
   const nextDay = getNextDayName(true);
   await deletePreviousSchedule();
-  const sent = await bot.sendMessage(
-    msg.chat.id,
-    formatScheduleMessage(nextDay),
-    {
-      message_thread_id: SCHEDULE_TOPIC_ID,
-      parse_mode: "HTML",
-    },
-  );
-  await saveLastScheduleMessageId(sent.message_id);
+  try {
+    const sent = await bot.sendMessage(
+      msg.chat.id,
+      formatScheduleMessage(nextDay),
+      {
+        parse_mode: "HTML",
+        ...(msg.message_thread_id
+          ? { message_thread_id: msg.message_thread_id }
+          : {}),
+      },
+    );
+    await saveLastScheduleMessageId(sent.message_id);
+  } catch (e) {
+    console.error("❌ Ошибка /schedule:", e.message);
+  }
 });
 
 bot.onText(/\/today/, async (msg) => {
   const today = getTodayDayName();
   await bot.sendMessage(msg.chat.id, formatScheduleMessage(today), {
-    message_thread_id: msg.message_thread_id || SCHEDULE_TOPIC_ID,
     parse_mode: "HTML",
+    ...(msg.message_thread_id
+      ? { message_thread_id: msg.message_thread_id }
+      : {}),
   });
 });
 

@@ -379,34 +379,64 @@ function detectSubjectFromMessage(text) {
   return null;
 }
 
+async function getFileLink(fileId) {
+  try {
+    const file = await bot.getFile(fileId);
+    return `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
+  } catch (e) {
+    console.error("❌ Ошибка получения ссылки на файл:", e.message);
+    return null;
+  }
+}
+
 bot.on("message", async (msg) => {
   console.log(
     `📨 Chat: ${msg.chat.id}, тип: ${msg.chat.type}, топик: ${msg.message_thread_id ?? "основной"}`,
   );
-  if (msg.message_thread_id == HOMEWORK_TOPIC_ID && msg.text) {
-    const detected = detectSubjectFromMessage(msg.text);
-    if (detected) {
-      const hw = await loadHomework();
-      const ts = new Date().toISOString();
-      for (const subj of detected.subjects) {
-        hw[subj] = {
-          text: detected.homework,
-          timestamp: ts,
-          message_id: msg.message_id,
-          full_message: msg.text,
-        };
-        console.log(`📝 Сохранено ДЗ: ${subj} → ${detected.homework}`);
-      }
-      await saveHomework(hw);
-      if (detected.subjects.length > 1) {
-        console.log(
-          `ℹ️ ДЗ сохранено для ${detected.subjects.length} групп: ${detected.subjects.join(", ")}`,
-        );
-      }
-    }
+
+  if (msg.message_thread_id != HOMEWORK_TOPIC_ID) return;
+
+  // Определяем текст: обычное сообщение или подпись к медиа
+  const text = msg.text || msg.caption || "";
+  if (!text) return;
+
+  const detected = detectSubjectFromMessage(text);
+  if (!detected) return;
+
+  // Ищем вложение: фото или документ
+  let fileLink = null;
+  if (msg.photo) {
+    // photo — массив, берём самое большое (последнее)
+    const largest = msg.photo[msg.photo.length - 1];
+    fileLink = await getFileLink(largest.file_id);
+  } else if (msg.document) {
+    fileLink = await getFileLink(msg.document.file_id);
+  }
+
+  const hw = await loadHomework();
+  const ts = new Date().toISOString();
+
+  for (const subj of detected.subjects) {
+    hw[subj] = {
+      text: detected.homework,
+      timestamp: ts,
+      message_id: msg.message_id,
+      full_message: text,
+      ...(fileLink ? { photo_url: fileLink } : {}), // добавляем ссылку если есть
+    };
+    console.log(
+      `📝 Сохранено ДЗ: ${subj} → ${detected.homework}${fileLink ? " [📷 фото]" : ""}`,
+    );
+  }
+
+  await saveHomework(hw);
+
+  if (detected.subjects.length > 1) {
+    console.log(
+      `ℹ️ ДЗ сохранено для ${detected.subjects.length} групп: ${detected.subjects.join(", ")}`,
+    );
   }
 });
-
 function getTodayDayName() {
   const days = [
     "Воскресенье",
@@ -493,19 +523,24 @@ function findRelatedHomework(scheduleSubject, allHomework) {
 async function formatHomeworkMessage(dayInfo) {
   const lessons = schedule[dayInfo.name];
   if (!lessons.length) return null;
+
   const hw = await loadHomework();
   const dayAcc = dayAccusativeCase[dayInfo.name];
   let msg = `<b>ДЗ на ${dayAcc} (${dayInfo.date})</b>\n`;
   let hasAny = false;
+
   lessons.forEach((l) => {
     findRelatedHomework(l.subject, hw).forEach(({ subject, homework }) => {
-      msg += `<b>${subject} - </b>${homework.text}\n`;
+      const photoLine = homework.photo_url
+        ? ` <a href="${homework.photo_url}">📷 фото</a>`
+        : "";
+      msg += `<b>${subject} - </b>${homework.text}${photoLine}\n`;
       hasAny = true;
     });
   });
+
   return hasAny ? msg.trim() : null;
 }
-
 async function sendWithRetry(fn, retries = 3, delay = 2000) {
   for (let i = 0; i < retries; i++) {
     try {

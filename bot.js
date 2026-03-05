@@ -300,32 +300,64 @@ async function saveLastScheduleMessageId(messageId) {
   }
 }
 
-async function deletePreviousSchedule() {
+async function saveLastScheduleMessageId(messageId) {
   try {
-    const last = await loadLastScheduleMessageId();
-    // Проверяем, есть ли вообще что удалять
-    if (!last || !last.messageId) {
-      console.log("ℹ️ В файле нет сохраненного ID для удаления");
+    // Если messageId = null/undefined — удаляем файл полностью,
+    // чтобы не хранить мусорный { messageId: null }
+    if (messageId == null) {
+      try {
+        await fs.unlink(LAST_SCHEDULE_FILE);
+        console.log("🗑️ Файл last_schedule.json очищен");
+      } catch {
+        // файл уже не существует — ок
+      }
       return;
     }
-
-    console.log(
-      `🔄 Попытка удалить сообщение ID: ${last.messageId} из чата ${FORUM_CHAT_ID}`,
+    await fs.writeFile(
+      LAST_SCHEDULE_FILE,
+      JSON.stringify({ messageId }, null, 2),
+      "utf8",
     );
-
-    try {
-      await bot.deleteMessage(FORUM_CHAT_ID, last.messageId);
-      console.log(`🗑️ Успешно удалено: ${last.messageId}`);
-    } catch (e) {
-      // Если сообщение слишком старое (больше 48 часов), Telegram не даст его удалить
-      console.error(`❌ Не удалось удалить сообщение: ${e.message}`);
-    }
-
-    // ВАЖНО: После попытки удаления (даже неудачной) лучше очистить ID,
-    // чтобы не спамить ошибками в логах
-    await saveLastScheduleMessageId(null);
+    console.log(`💾 Сохранён ID расписания: ${messageId}`);
   } catch (e) {
-    console.error("❌ Ошибка в deletePreviousSchedule:", e.message);
+    console.error("❌ Ошибка сохранения ID сообщения:", e);
+  }
+}
+
+// ── Загрузка ID ───────────────────────────────────────────────────────────────
+async function loadLastScheduleMessageId() {
+  try {
+    const raw = await fs.readFile(LAST_SCHEDULE_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    // Защита от { messageId: null } в старом файле
+    return parsed?.messageId ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function deletePreviousSchedule() {
+  const last = await loadLastScheduleMessageId();
+
+  if (!last?.messageId) {
+    console.log("ℹ️ Нет сохранённого ID для удаления");
+    return;
+  }
+
+  console.log(`🔄 Удаляем сообщение ID: ${last.messageId}`);
+
+  try {
+    await bot.deleteMessage(FORUM_CHAT_ID, last.messageId);
+    console.log(`✅ Удалено: ${last.messageId}`);
+  } catch (e) {
+    // Telegram: сообщение не найдено (уже удалено вручную) — не критично
+    // Telegram: сообщение старше 48ч — не критично, просто логируем
+    console.warn(
+      `⚠️ Не удалось удалить сообщение ${last.messageId}: ${e.message}`,
+    );
+  } finally {
+    // Сбрасываем ID в любом случае — старое сообщение уже не актуально
+    await saveLastScheduleMessageId(null);
   }
 }
 
@@ -491,10 +523,10 @@ async function sendScheduleToTopic() {
     const nextDay = getNextDayName();
     if (!nextDay) return;
 
-    // 1. Сначала удаляем старое
+    // 1. Удаляем старое (ошибка не должна остановить отправку нового)
     await deletePreviousSchedule();
 
-    // 2. Небольшая пауза (500мс) для стабильности
+    // 2. Небольшая пауза для стабильности
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // 3. Отправляем новое
@@ -505,39 +537,13 @@ async function sendScheduleToTopic() {
       }),
     );
 
-    // 4. СРАЗУ сохраняем новый ID
+    // 4. Сохраняем новый ID сразу
     await saveLastScheduleMessageId(sent.message_id);
-    console.log(`✅ Новое расписание сохранено с ID: ${sent.message_id}`);
+    console.log(`✅ Новое расписание отправлено, ID: ${sent.message_id}`);
   } catch (e) {
     console.error("❌ Критическая ошибка в sendScheduleToTopic:", e.message);
   }
 }
-async function sendHomeworkToTopic() {
-  try {
-    const nextDay = getNextDayName();
-    if (!nextDay) {
-      console.log("ℹ️ Воскресенье, ДЗ не отправляется");
-      return;
-    }
-    const msg = await formatHomeworkMessage(nextDay);
-    if (msg) {
-      await sendWithRetry(() =>
-        bot.sendMessage(FORUM_CHAT_ID, msg, {
-          message_thread_id: HOMEWORK_TOPIC_ID,
-          parse_mode: "HTML",
-        }),
-      );
-      console.log(
-        `✅ ДЗ на ${nextDay.name} (${nextDay.date}) → топик ${HOMEWORK_TOPIC_ID}`,
-      );
-    } else {
-      console.log(`ℹ️ Нет ДЗ на ${nextDay.name}`);
-    }
-  } catch (e) {
-    console.error("❌ Ошибка отправки ДЗ:", e.message);
-  }
-}
-
 async function sendDailyUpdates() {
   console.log(`🕐 Попытка отправки в ${getTashkentTime()}`);
   await sendScheduleToTopic();

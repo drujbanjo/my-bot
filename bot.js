@@ -10,12 +10,11 @@ const SCHEDULE_TOPIC_ID = 3;
 const HOMEWORK_TOPIC_ID = 2;
 
 if (!BOT_TOKEN) {
-  console.error("❌ BOT_TOKEN не найден в переменных окружения!");
+  console.error("❌ BOT_TOKEN не найден!");
   process.exit(1);
 }
-
 if (!FORUM_CHAT_ID) {
-  console.error("❌ FORUM_CHAT_ID не найден в переменных окружения!");
+  console.error("❌ FORUM_CHAT_ID не найден!");
   process.exit(1);
 }
 
@@ -165,7 +164,6 @@ const subjectAliases = {
   "классный час": "Классный час",
   "кл. час": "Классный час",
   "час будушего": "Классный час",
-
   "английский 1 группа": "Английский язык 1 группа",
   "английскый 1 группа": "Английский язык 1 группа",
   "английски 1 группа": "Английский язык 1 группа",
@@ -178,7 +176,6 @@ const subjectAliases = {
   английскый: "Английский язык",
   английски: "Английский язык",
   "английский язык": "Английский язык",
-
   "узбекский 1 группа": "Узбекский язык 1 группа",
   "узбекски 1 группа": "Узбекский язык 1 группа",
   "узбекский язык 1 группа": "Узбекский язык 1 группа",
@@ -188,7 +185,6 @@ const subjectAliases = {
   узбекский: "Узбекский язык",
   узбекски: "Узбекский язык",
   "узбекский язык": "Узбекский язык",
-
   "информатика 1 группа": "Информатика 1 группа",
   "информатике 1 группа": "Информатика 1 группа",
   "информатик 1 группа": "Информатика 1 группа",
@@ -198,7 +194,6 @@ const subjectAliases = {
   информатика: "Информатика",
   информатике: "Информатика",
   информатик: "Информатика",
-
   "технология девочки": "Технология Девочки",
   "технология девочк": "Технология Девочки",
   "технология мальчики": "Технология Мальчики",
@@ -243,6 +238,7 @@ function shouldSendNow() {
   return t.getHours() === sendTime.hour && t.getMinutes() === sendTime.minute;
 }
 
+// ─── Хранилище ────────────────────────────────────────────────────────────────
 async function initStorage() {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
@@ -280,36 +276,14 @@ async function saveHomework(hw) {
   }
 }
 
-async function loadLastScheduleMessageId() {
-  try {
-    return JSON.parse(await fs.readFile(LAST_SCHEDULE_FILE, "utf8"));
-  } catch {
-    return null;
-  }
-}
-
 async function saveLastScheduleMessageId(messageId) {
   try {
-    await fs.writeFile(
-      LAST_SCHEDULE_FILE,
-      JSON.stringify({ messageId }, null, 2),
-      "utf8",
-    );
-  } catch (e) {
-    console.error("❌ Ошибка сохранения ID сообщения:", e);
-  }
-}
-
-async function saveLastScheduleMessageId(messageId) {
-  try {
-    // Если messageId = null/undefined — удаляем файл полностью,
-    // чтобы не хранить мусорный { messageId: null }
     if (messageId == null) {
       try {
         await fs.unlink(LAST_SCHEDULE_FILE);
         console.log("🗑️ Файл last_schedule.json очищен");
       } catch {
-        // файл уже не существует — ок
+        /* уже нет */
       }
       return;
     }
@@ -324,39 +298,43 @@ async function saveLastScheduleMessageId(messageId) {
   }
 }
 
-// ── Загрузка ID ───────────────────────────────────────────────────────────────
 async function loadLastScheduleMessageId() {
   try {
     const raw = await fs.readFile(LAST_SCHEDULE_FILE, "utf8");
     const parsed = JSON.parse(raw);
-    // Защита от { messageId: null } в старом файле
     return parsed?.messageId ? parsed : null;
   } catch {
     return null;
   }
 }
 
+// ─── Файлы Telegram ───────────────────────────────────────────────────────────
+async function getFileLink(fileId) {
+  try {
+    const file = await bot.getFile(fileId);
+    return `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
+  } catch (e) {
+    console.error("❌ Ошибка получения ссылки на файл:", e.message);
+    return null;
+  }
+}
+
+// ─── Расписание ───────────────────────────────────────────────────────────────
 async function deletePreviousSchedule() {
   const last = await loadLastScheduleMessageId();
-
   if (!last?.messageId) {
     console.log("ℹ️ Нет сохранённого ID для удаления");
     return;
   }
-
   console.log(`🔄 Удаляем сообщение ID: ${last.messageId}`);
-
   try {
     await bot.deleteMessage(FORUM_CHAT_ID, last.messageId);
     console.log(`✅ Удалено: ${last.messageId}`);
   } catch (e) {
-    // Telegram: сообщение не найдено (уже удалено вручную) — не критично
-    // Telegram: сообщение старше 48ч — не критично, просто логируем
     console.warn(
       `⚠️ Не удалось удалить сообщение ${last.messageId}: ${e.message}`,
     );
   } finally {
-    // Сбрасываем ID в любом случае — старое сообщение уже не актуально
     await saveLastScheduleMessageId(null);
   }
 }
@@ -379,16 +357,7 @@ function detectSubjectFromMessage(text) {
   return null;
 }
 
-async function getFileLink(fileId) {
-  try {
-    const file = await bot.getFile(fileId);
-    return `https://api.telegram.org/file/bot${BOT_TOKEN}/${file.file_path}`;
-  } catch (e) {
-    console.error("❌ Ошибка получения ссылки на файл:", e.message);
-    return null;
-  }
-}
-
+// ─── Обработчик сообщений ─────────────────────────────────────────────────────
 bot.on("message", async (msg) => {
   console.log(
     `📨 Chat: ${msg.chat.id}, тип: ${msg.chat.type}, топик: ${msg.message_thread_id ?? "основной"}`,
@@ -396,17 +365,16 @@ bot.on("message", async (msg) => {
 
   if (msg.message_thread_id != HOMEWORK_TOPIC_ID) return;
 
-  // Определяем текст: обычное сообщение или подпись к медиа
+  // Текст сообщения или подпись к фото/файлу
   const text = msg.text || msg.caption || "";
   if (!text) return;
 
   const detected = detectSubjectFromMessage(text);
   if (!detected) return;
 
-  // Ищем вложение: фото или документ
+  // Ссылка на фото или документ (если есть)
   let fileLink = null;
   if (msg.photo) {
-    // photo — массив, берём самое большое (последнее)
     const largest = msg.photo[msg.photo.length - 1];
     fileLink = await getFileLink(largest.file_id);
   } else if (msg.document) {
@@ -422,7 +390,7 @@ bot.on("message", async (msg) => {
       timestamp: ts,
       message_id: msg.message_id,
       full_message: text,
-      ...(fileLink ? { photo_url: fileLink } : {}), // добавляем ссылку если есть
+      ...(fileLink ? { photo_url: fileLink } : {}),
     };
     console.log(
       `📝 Сохранено ДЗ: ${subj} → ${detected.homework}${fileLink ? " [📷 фото]" : ""}`,
@@ -437,6 +405,8 @@ bot.on("message", async (msg) => {
     );
   }
 });
+
+// ─── Утилиты дат ──────────────────────────────────────────────────────────────
 function getTodayDayName() {
   const days = [
     "Воскресенье",
@@ -469,7 +439,7 @@ function getNextDayName(forceMonday = false) {
   const idx = t.getDay();
   if (idx === 0 && !forceMonday) return null;
   const next = new Date(t);
-  next.setDate(t.getDate() + (idx === 6 ? 2 : idx === 0 ? 1 : 1));
+  next.setDate(t.getDate() + (idx === 6 ? 2 : 1));
   return { name: days[next.getDay()], date: formatDate(next) };
 }
 
@@ -541,6 +511,8 @@ async function formatHomeworkMessage(dayInfo) {
 
   return hasAny ? msg.trim() : null;
 }
+
+// ─── Отправка ─────────────────────────────────────────────────────────────────
 async function sendWithRetry(fn, retries = 3, delay = 2000) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -553,41 +525,55 @@ async function sendWithRetry(fn, retries = 3, delay = 2000) {
   }
 }
 
+async function sendHomeworkToTopic() {
+  try {
+    const nextDay = getNextDayName();
+    if (!nextDay) return;
+    const text = await formatHomeworkMessage(nextDay);
+    if (!text) {
+      console.log("ℹ️ Нет ДЗ для отправки");
+      return;
+    }
+    await sendWithRetry(() =>
+      bot.sendMessage(FORUM_CHAT_ID, text, {
+        message_thread_id: HOMEWORK_TOPIC_ID,
+        parse_mode: "HTML",
+        disable_web_page_preview: false,
+      }),
+    );
+    console.log("✅ ДЗ отправлено");
+  } catch (e) {
+    console.error("❌ Критическая ошибка в sendHomeworkToTopic:", e.message);
+  }
+}
+
 async function sendScheduleToTopic() {
   try {
     const nextDay = getNextDayName();
     if (!nextDay) return;
-
-    // 1. Удаляем старое (ошибка не должна остановить отправку нового)
     await deletePreviousSchedule();
-
-    // 2. Небольшая пауза для стабильности
     await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // 3. Отправляем новое
     const sent = await sendWithRetry(() =>
       bot.sendMessage(FORUM_CHAT_ID, formatScheduleMessage(nextDay), {
         message_thread_id: SCHEDULE_TOPIC_ID,
         parse_mode: "HTML",
       }),
     );
-
-    // 4. Сохраняем новый ID сразу
     await saveLastScheduleMessageId(sent.message_id);
     console.log(`✅ Новое расписание отправлено, ID: ${sent.message_id}`);
   } catch (e) {
     console.error("❌ Критическая ошибка в sendScheduleToTopic:", e.message);
   }
 }
+
 async function sendDailyUpdates() {
   console.log(`🕐 Попытка отправки в ${getTashkentTime()}`);
   await sendScheduleToTopic();
   await sendHomeworkToTopic();
 }
 
-// ─── FIX: флаг защиты от повторной отправки в одну минуту ───────────────────
+// ─── Cron ─────────────────────────────────────────────────────────────────────
 let lastSentMinute = null;
-
 cron.schedule("* * * * *", async () => {
   if (shouldSendNow()) {
     const days = [
@@ -605,29 +591,26 @@ cron.schedule("* * * * *", async () => {
     const todayName = days[t.getDay()];
     const st = sendTimeByDay[todayName];
     const minuteKey = `${todayName}-${st.hour}:${st.minute}`;
-
     if (lastSentMinute === minuteKey) {
-      console.log(`⏭️ Уже отправлено в эту минуту (${minuteKey}), пропуск`);
+      console.log(`⏭️ Уже отправлено (${minuteKey}), пропуск`);
       return;
     }
     lastSentMinute = minuteKey;
-
     console.log(
-      `⏰ Время отправки (${String(st.hour).padStart(2, "0")}:${String(st.minute).padStart(2, "0")} Ташкент — конец уроков + 5 мин)`,
+      `⏰ Время отправки ${String(st.hour).padStart(2, "0")}:${String(st.minute).padStart(2, "0")} Ташкент`,
     );
     try {
       await sendDailyUpdates();
     } catch (e) {
       console.error("❌ Ошибка автоотправки:", e);
-      lastSentMinute = null; // сброс чтобы попробовать снова
+      lastSentMinute = null;
     }
   }
 });
 
 setInterval(() => console.log(`🕐 Heartbeat: ${getTashkentTime()}`), 3600000);
 
-// ─── Команды ─────────────────────────────────────────────────────────────────
-
+// ─── Команды ──────────────────────────────────────────────────────────────────
 bot.onText(/\/gethw/, async (msg) => {
   const hw = await loadHomework();
   const keys = Object.keys(hw);
@@ -641,17 +624,19 @@ bot.onText(/\/gethw/, async (msg) => {
   }
   let text = "📚 <b>Все сохраненные ДЗ:</b>\n\n";
   keys.forEach((subj) => {
-    const { text: t, timestamp } = hw[subj];
+    const { text: t, timestamp, photo_url } = hw[subj];
     const date = new Date(timestamp).toLocaleString("ru-RU", {
       day: "2-digit",
       month: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
     });
-    text += `<b>${subj}</b> (${date}):\n${t}\n\n`;
+    const photoLine = photo_url ? ` <a href="${photo_url}">📷 фото</a>` : "";
+    text += `<b>${subj}</b> (${date}):\n${t}${photoLine}\n\n`;
   });
   await bot.sendMessage(msg.chat.id, text, {
     parse_mode: "HTML",
+    disable_web_page_preview: true,
     ...(msg.message_thread_id
       ? { message_thread_id: msg.message_thread_id }
       : {}),
@@ -728,15 +713,11 @@ bot.onText(/\/schedule/, async (msg) => {
 
 bot.onText(/\/today/, async (msg) => {
   const today = getTodayDayName();
-
   try {
-    // Расписание → топик 3
     await bot.sendMessage(FORUM_CHAT_ID, formatScheduleMessage(today), {
       parse_mode: "HTML",
       message_thread_id: SCHEDULE_TOPIC_ID,
     });
-
-    // ДЗ → топик 2
     const hwText = await formatHomeworkMessage(today);
     const hwReply =
       hwText || `Нет ДЗ на ${dayAccusativeCase[today.name]} (${today.date})`;
@@ -801,7 +782,6 @@ Chat ID: <code>${msg.chat.id}</code>
 Chat Type: ${msg.chat.type}
 Chat Title: ${msg.chat.title || "N/A"}
 ${msg.message_thread_id ? `Thread ID: ${msg.message_thread_id}` : ""}
-
 <b>Конфигурация бота:</b>
 FORUM_CHAT_ID: <code>${FORUM_CHAT_ID}</code>
 SCHEDULE_TOPIC_ID: ${SCHEDULE_TOPIC_ID}
@@ -827,6 +807,7 @@ bot.onText(/\/debug/, async (msg) => {
   }
 });
 
+// ─── Старт ────────────────────────────────────────────────────────────────────
 (async () => {
   await initStorage();
   console.log("🤖 Бот запущен!");

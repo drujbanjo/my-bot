@@ -103,7 +103,7 @@ const sendTimeByDay = (() => {
       h += 1;
       m -= 60;
     }
-    result[day] = { hour: 9, minute: 10 };
+    result[day] = { hour: h, minute: m };
   }
   return result;
 })();
